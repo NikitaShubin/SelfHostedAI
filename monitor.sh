@@ -41,7 +41,7 @@ fi
 
 # 3. Проверка скачиваемых прямо сейчас моделей
 # Ищем в логах Ollama информацию о загрузке моделей
-CURRENT_DOWNLOAD=$(docker compose logs ollama --tail=15 2>/dev/null 2>/dev/null | grep -E "(pulling|downloading).*(layer|digest|%)" | tail -1)
+CURRENT_DOWNLOAD=$(docker compose logs ollama --tail=15 2>/dev/null | grep -E "(pulling|downloading).*(layer|digest|%)" | tail -1)
 if [ -n "$CURRENT_DOWNLOAD" ]; then
     echo ""
     echo -e "${YELLOW}🔄 Сейчас загружается:${NC}"

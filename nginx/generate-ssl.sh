@@ -10,15 +10,14 @@ mkdir -p "$SSL_DIR"
 # Проверяем, есть ли уже сертификаты
 if [ ! -f "$SSL_DIR/localhost.crt" ] || [ ! -f "$SSL_DIR/localhost.key" ]; then
     echo "🔐 Генерация самоподписанных SSL сертификатов..."
-    
+
     # Генерируем самоподписанный сертификат на 365 дней с ключом RSA 2048
-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    if openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
         -keyout "$SSL_DIR/localhost.key" \
         -out "$SSL_DIR/localhost.crt" \
         -subj "/C=US/ST=State/L=City/O=Localhost/CN=localhost" \
-        -addext "subjectAltName = DNS:localhost,IP:127.0.0.1" 2>/dev/null
-    
-    if [ $? -eq 0 ]; then
+        -addext "subjectAltName = DNS:localhost,IP:127.0.0.1" 2>/dev/null; then
+
         echo "✅ SSL сертификаты успешно созданы в $SSL_DIR/"
         echo "   Файлы: localhost.crt, localhost.key"
         echo ""
