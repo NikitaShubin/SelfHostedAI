@@ -1,5 +1,7 @@
 # Nginx с автоматической генерацией SSL сертификатов
 
+# hadolint global ignore = DL3018  # Не фиксируем версии, т.к. в этом образе нужны свежие пакеты
+
 FROM nginx:alpine
 
 # Устанавливаем openssl для генерации сертификатов
@@ -13,7 +15,8 @@ COPY nginx.conf /etc/nginx/nginx.conf
 COPY generate-ssl.sh /docker-entrypoint.d/40-generate-ssl.sh
 RUN chmod +x /docker-entrypoint.d/40-generate-ssl.sh
 
-EXPOSE 80 443  # Открываем HTTP и HTTPS порты
+# Открываем HTTP и HTTPS порты
+EXPOSE 80 443
 
 # Оставляем стандартный entrypoint nginx (он выполнит наши скрипты в /docker-entrypoint.d/)
 CMD ["nginx", "-g", "daemon off;"]
