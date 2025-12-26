@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  ollama:
+    build: ./ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"  # Ollama API порт
+    volumes:
+      - ./data/ollama:/root/.ollama  # Сохраняем модели на хосте
+      - ./models.txt:/models.txt     # Список моделей для загрузки
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h  # Поддержание моделей в памяти
+      - OLLAMA_HOST=0.0.0.0    # Доступ к API извне контейнера
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]  # Использование GPU NVIDIA для ускорения
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+  voice-bridge:
+    build: ./voice_bridge
+    container_name: voice-bridge
+    devices:
+      - "/dev/snd:/dev/snd"  # Доступ к звуковым устройствам хоста
+    group_add:
+      - "audio"  # Добавляем в группу audio для работы со звуком
+    depends_on:
+      - ollama  # Зависит от Ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434  # URL Ollama API
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+  webui:
+    image: ghcr.io/open-webui/open-webui:main  # Веб-интерфейс для Ollama
+    container_name: open-webui
+    ports:
+      - "8080:8080"  # Прямой доступ к WebUI (альтернатива nginx)
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434  # Ссылка на Ollama
+      - ENABLE_ADD_ONS=true     # Включение дополнений
+      - ENABLE_STT=true         # Включение распознавания речи
+      - ENABLE_TTS=true         # Включение синтеза речи
+      - HF_HUB_OFFLINE=0        # Использовать онлайн-репозитории HuggingFace
+    volumes:
+      - ./data/webui:/app/backend/data  # Сохраняем данные WebUI
+    depends_on:
+      - ollama
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+  nginx:
+    build: ./nginx
+    container_name: nginx-proxy
+    ports:
+      - "80:80"    # HTTP порт (редирект на HTTPS)
+      - "443:443"  # HTTPS порт
+    volumes:
+      - ./data/nginx:/etc/nginx/ssl  # SSL сертификаты
+    depends_on:
+      - webui  # Проксирует запросы к WebUI
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+networks:
+  ai-network:
+    driver: bridge  # Общая сеть для всех сервисов

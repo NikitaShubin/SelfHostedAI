@@ -1,0 +1,4 @@
+openai-whisper  # Библиотека для распознавания речи от OpenAI
+requests        # HTTP-запросы к Ollama API
+pyaudio         # Работа с аудиоустройствами
+pyttsx3         # Синтез речи (text-to-speech)
