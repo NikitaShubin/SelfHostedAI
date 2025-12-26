@@ -10,10 +10,10 @@ import tempfile
 import wave
 from pathlib import Path
 
-import pyaudio
-import pyttsx3
+import pyaudio  # type: ignore[import-untyped]
+import pyttsx3  # type: ignore[import-untyped]
 import requests
-import whisper
+import whisper  # type: ignore[import-not-found]
 
 # Инициализация синтезатора речи
 tts_engine = pyttsx3.init()
