@@ -1,52 +1,71 @@
 <!-- markdownlint-disable MD033 -->
 
-# AI Stack с Ollama и голосовым интерфейсом
+# AI Stack с Ollama и веб-интерфейсом
 
-Полнофункциональный стек искусственного интеллекта с локальными LLM моделями,
-веб-интерфейсом и голосовым взаимодействием.
+Полнофункциональный стек искусственного интеллекта с локальными LLM моделями
+и современным веб-интерфейсом.
 
 ## 🚀 Возможности
 
 - **Локальные LLM модели** через Ollama
 - **Веб-интерфейс** Open WebUI (аналог ChatGPT UI)
-- **Голосовой интерфейс** для взаимодействия с ИИ
+- **Голосовой ввод/вывод** через встроенные возможности WebUI (STT/TTS)
 - **Автоматическая загрузка моделей** из конфигурационного файла
-- **HTTPS поддержка** через Nginx с самоподписанными сертификатами
+- **HTTP/HTTPS поддержка** через Nginx (самоподписанные сертификаты для HTTPS)
 
 ## 📐 Архитектура
 
 ```mermaid
 flowchart TD
+
+    classDef invisibleLine stroke:none,stroke-width:0
+    %% classDef invisible fill:none,stroke:none,width:0,height:0
+
     User["👤 Пользователь"]
 
-    VoiceBridge["🔊 Голосовой мост<br/>voice-bridge"]
-    Browser["🌐 Веб-браузер"]
-    LocalServices["💻 Локальные сервисы<br/>IDE, скрипты, API-клиенты"]
+    subgraph "Интерфейсы"
+        Browser["🌐 Веб-браузер"]
+        APIClients["🔧 API Клиенты<br/>Локальные сервисы"]
+    end
 
-    Nginx["🛡️ Nginx<br/>прокси + HTTPS"]
-    WebUI["💻 Open WebUI<br/> HTTP веб-интерфейс"]
+    Nginx["🛡️ Nginx<br/>HTTP/HTTPS прокси"]
+    WebUI["💻 Open WebUI"]
     Ollama["🤖 Ollama<br/>LLM сервер"]
 
     Models["📦 Загруженные модели"]
-    Config["⚙️ Конфигурация<br/>models.txt"]
+    Config["⚙️ Конфигурация<br/>__models.txt__"]
 
-    %% Основные потоки взаимодействия
-    User <--> VoiceBridge
-    User <--> Browser
-    LocalServices <--> Ollama
+    %% Невидимые узлы для разделения стрелок:
+    %% subgraph " "
+    %%     p1[" "]:::invisible
+    %%     p2[" "]:::invisible
+    %%     p3[" "]:::invisible
+    %% end
 
-    %% Взаимодействие через веб-интерфейс
-    Browser <--> Nginx
-    Nginx <--> WebUI
-    Browser <--> WebUI
-    WebUI <--> Ollama
+    %% Пользовательские связи:
+    User --> Browser
+    User --> APIClients
 
-    %% Взаимодействие голосового моста
-    VoiceBridge <--> Ollama
+    %% Сетевые связи:
+    Browser    -- :80/443 --> Nginx
+    Browser    -- :8080   --> WebUI
+    APIClients -- :11434  --> Ollama
+    
+    %% Добавляем цвета к портам:
+    linkStyle 2 stroke:blue,stroke-width:1px;
+    linkStyle 3 stroke:green,stroke-width:1px;
+    linkStyle 4 stroke:orange,stroke-width:1px;
 
-    %% Данные и конфигурация
-    Config --> Ollama
+    %% Взаимодействие через веб-интерфейс:
+    Nginx --> WebUI
+
+    %% Взаимодействие WebUI с Ollama:
+    WebUI --> Ollama
+
+    %% Данные и конфигурация:
+    Ollama --> Config
     Ollama --> Models
+
 ```
 
 ## ⚡ Быстрый старт
@@ -57,7 +76,7 @@ flowchart TD
 - **Минимум 8 ГБ ОЗУ** (рекомендуется 16+ ГБ)
 - **20 ГБ свободного места** на диске для моделей
 - **Доступ в интернет** для загрузки моделей
-- **Микрофон и колонки** для голосового интерфейса
+- **NVIDIA GPU** (рекомендуется для лучшей производительности)
 
 ### Установка и запуск
 
@@ -68,48 +87,43 @@ flowchart TD
    cd SelfHostedAI
    ```
 
-1. **Настройте модели** (опционально)
+2. **Настройте модели** (опционально)
    Отредактируйте файл `models.txt`, раскомментировав или дописав нужные модели:
 
    ```bash
    nano models.txt
    ```
 
-1. **Запустите стек**:
+3. **Запустите стек**:
 
    ```bash
    ./run.sh
    ```
 
-1. **Дождитесь загрузки моделей** (может занять время в зависимости от выбранных
-моделей и скорости интернета)
+4. **Дождитесь загрузки моделей** (может занять время в зависимости от выбранных
+   моделей и скорости интернета)
 
-1. **Откройте в браузере**:
-   - Веб-интерфейс: <https://localhost>
+5. **Откройте в браузере**:
+   - Веб-интерфейс (HTTP): <http://localhost>
+   - Веб-интерфейс (HTTPS): <https://localhost>
    - Прямой доступ к WebUI: <http://localhost:8080>
    - Ollama API: <http://localhost:11434>
+
+> **Примечание:** Некоторые браузеры могут автоматически переключать HTTP на HTTPS.
 
 ## 🎯 Использование
 
 ### Веб-интерфейс (Open WebUI)
 
-1. Откройте <https://localhost> в браузере
-1. Примите самоподписанный сертификат (предупреждение безопасности)
+1. Откройте в браузере:
+   - **<http://localhost>** (HTTP, без предупреждений)
+   - **<https://localhost>** для поддержки голосового общения
+     (HTTPS, с предупреждением о самоподписанном сертификате)
+
+1. При использовании HTTPS примите самоподписанный сертификат
 1. Зарегистрируйте нового пользователя или войдите
 1. Выберите модель из списка загруженных
-1. Начните общение с ИИ
-
-### Голосовой интерфейс
-
-1. Запустите голосовой мост:
-
-   ```bash
-   docker compose exec voice-bridge python bridge.py
-   ```
-
-1. Нажимайте Enter для начала записи
-1. Говорите в микрофон (до 5 секунд)
-1. Слушайте ответ ИИ
+1. Начните общение с ИИ (через HTTPS доступно использование голосвого ввода/вывода)
 
 ### API Ollama
 
@@ -139,10 +153,6 @@ curl http://localhost:11434/api/generate -d '{
 ├── ollama/               # Ollama сервер
 │   ├── Dockerfile        # Образ Ollama с утилитами
 │   └── init-models.sh    # Скрипт загрузки моделей
-├── voice_bridge/         # Голосовой интерфейс
-│   ├── Dockerfile        # Образ голосового моста
-│   ├── bridge.py         # Основной скрипт
-│   └── requirements.txt  # Python зависимости
 ├── docker-compose.yaml   # Конфигурация Docker Compose
 ├── models.txt            # Список моделей для загрузки
 ├── monitor.sh            # Мониторинг сервисов
@@ -166,8 +176,8 @@ curl http://localhost:11434/api/generate -d '{
 
 ### Портs
 
-- `80`: HTTP (редирект на HTTPS)
-- `443`: HTTPS (веб-интерфейс)
+- `80`: HTTP (веб-интерфейс без шифрования)
+- `443`: HTTPS (веб-интерфейс с шифрованием)
 - `8080`: Прямой доступ к Open WebUI
 - `11434`: Ollama API
 
@@ -197,7 +207,7 @@ curl http://localhost:11434/api/generate -d '{
 
 # Логи конкретного сервиса
 docker compose logs ollama -f
-docker compose logs voice-bridge -f
+docker compose logs webui -f
 ```
 
 </details>
@@ -213,14 +223,14 @@ docker compose logs voice-bridge -f
 ### Вывод в продакшен
 
 1. Замените сертификаты в `./data/nginx/` на полученные от Let's Encrypt
-1. Обновите `nginx.conf` для использования реальных доменов
-1. Настройте брандмауэр для доступа только к необходимым портам
+2. Обновите `nginx.conf` для использования реальных доменов
+3. Настройте брандмауэр для доступа только к необходимым портам
 
 ### Рекомендации по безопасности
 
 1. Не используйте в публичных сетях без настройки аутентификации
-1. Ограничьте доступ к портам 11434 (Ollama API) и 8080 (WebUI)
-1. Регулярно обновляйте образы Docker
+2. Ограничьте доступ к портам 11434 (Ollama API) и 8080 (WebUI)
+3. Регулярно обновляйте образы Docker
 
 </details>
 
@@ -229,8 +239,7 @@ docker compose logs voice-bridge -f
 
 - [Ollama](https://ollama.ai) - За фреймворк для локальных LLM
 - [Open WebUI](https://github.com/open-webui) - За веб-интерфейс
-- [OpenAI Whisper](https://github.com/openai/whisper) - За распознавание речи
-- [👤Стасу](https://github.com/stansf) - За первую рабочую версию проекта
+- [👤Стасу](https://github.com/stansf) - За прототип проекта
 - [DeepSeek](https://chat.deepseek.com) - За помощь в развитии
 
 </details>

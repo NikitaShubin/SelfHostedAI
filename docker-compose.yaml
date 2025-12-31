@@ -1,6 +1,7 @@
 name: selfhosted-ai
 
 services:
+
   nginx:
     build: ./nginx
     container_name: nginx-proxy
@@ -8,12 +9,15 @@ services:
       - webui # Проксирует запросы к WebUI
     volumes:
       - ./data/nginx:/etc/nginx/ssl # SSL сертификаты
+    environment:
+      - NGINX_REDIRECT_HTTP_TO_HTTPS=false # Сохранение работы HTTP
     ports:
       - '0.0.0.0:80:80' # HTTP порт (редирект на HTTPS)
       - '0.0.0.0:443:443' # HTTPS порт
     networks:
       - ai-network
     restart: unless-stopped
+
   ollama:
     build: ./ollama
     container_name: ollama
@@ -35,21 +39,6 @@ services:
             - driver: nvidia
               count: all
               capabilities: [ gpu ] # Использование GPU NVIDIA для ускорения
-
-  voice-bridge:
-    build: ./voice_bridge
-    container_name: voice-bridge
-    depends_on:
-      - ollama # Зависит от Ollama
-    environment:
-      - OLLAMA_HOST=http://ollama:11434 # URL Ollama API
-    networks:
-      - ai-network
-    restart: unless-stopped
-    devices:
-      - "/dev/snd:/dev/snd" # Доступ к звуковым устройствам хоста
-    group_add:
-      - "audio" # Добавляем в группу audio для работы со звуком
 
   webui:
     image: ghcr.io/open-webui/open-webui:main # Веб-интерфейс для Ollama

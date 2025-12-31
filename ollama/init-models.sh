@@ -13,7 +13,7 @@ extract_models() {
         echo "# mistral:7b"
         return 1
     fi
-    
+
     # Извлекаем активные модели (незакомментированные строки)
     grep -v '^#' "$MODELS_FILE" | grep -v '^$' | sed 's/#.*$//' | xargs
 }
@@ -34,7 +34,7 @@ while [ $WAITED -lt $MAX_WAIT ]; do
         echo "✓ Сервер Ollama запущен!"
         break
     fi
-    
+
     echo "Ожидание... ($((WAITED + 2))/60 секунд)"
     sleep 2
     WAITED=$((WAITED + 2))
@@ -60,11 +60,11 @@ else
     echo "Найдены модели для загрузки:"
     echo "$MODELS" | tr ' ' '\n' | sed 's/^/  - /'
     echo ""
-    
+
     # Проходим по каждой модели из списка
     for model in $MODELS; do
         echo "Проверяем модель: $model"
-        
+
         # Проверяем, загружена ли модель уже
         if curl -s http://localhost:11434/api/tags | jq -e ".models[] | select(.name == \"$model\")" > /dev/null 2>&1; then
             echo "  ✓ Модель '$model' уже загружена"
