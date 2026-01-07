@@ -1,23 +1,11 @@
+# dclint disable services-alphabetical-order
+# Отключаем правило упорядочивания сервиса по именам, т.к. их в данном случае лучше перечислять в порядке запуска.
+
 name: selfhosted-ai
 
 services:
 
-  nginx:
-    build: ./nginx
-    container_name: nginx-proxy
-    depends_on:
-      - webui # Проксирует запросы к WebUI
-    volumes:
-      - ./data/nginx:/etc/nginx/ssl # SSL сертификаты
-    environment:
-      - NGINX_REDIRECT_HTTP_TO_HTTPS=false # Сохранение работы HTTP
-    ports:
-      - '0.0.0.0:80:80' # HTTP порт (редирект на HTTPS)
-      - '0.0.0.0:443:443' # HTTPS порт
-    networks:
-      - ai-network
-    restart: unless-stopped
-
+  # Бекэнд:
   ollama:
     build: ./ollama
     container_name: ollama
@@ -25,8 +13,8 @@ services:
       - ./data/ollama:/root/.ollama # Сохраняем модели на хосте
       - ./models.txt:/models.txt # Список моделей для загрузки
     environment:
-      - OLLAMA_KEEP_ALIVE=10m # Поддержание моделей в памяти
-      - OLLAMA_HOST=0.0.0.0   # Доступ к API извне контейнера
+      - OLLAMA_KEEP_ALIVE=10m # Удержание моделей в памяти
+      - OLLAMA_HOST=0.0.0.0 # Доступ к API извне контейнера
       - OLLAMA_NUM_PARALLEL=4 # Число одновременно обслуживаемых запросов
     ports:
       - '0.0.0.0:11434:11434' # Ollama API порт
@@ -41,6 +29,7 @@ services:
               count: all
               capabilities: [ gpu ] # Использование GPU NVIDIA для ускорения
 
+  # Фронтэнд:
   webui:
     image: ghcr.io/open-webui/open-webui:main # Веб-интерфейс для Ollama
     container_name: open-webui
@@ -56,6 +45,23 @@ services:
       - HF_HUB_OFFLINE=0 # Использовать онлайн-репозитории HuggingFace
     ports:
       - '0.0.0.0:8080:8080' # Прямой доступ к WebUI (альтернатива nginx)
+    networks:
+      - ai-network
+    restart: unless-stopped
+
+  # Прокси (для работы HTTPS):
+  nginx:
+    build: ./nginx
+    container_name: nginx-proxy
+    depends_on:
+      - webui # Проксирует запросы к WebUI
+    volumes:
+      - ./data/nginx:/etc/nginx/ssl # SSL сертификаты
+    environment:
+      - NGINX_REDIRECT_HTTP_TO_HTTPS=false # Сохранение работы HTTP
+    ports:
+      - '0.0.0.0:80:80' # HTTP порт (редирект на HTTPS)
+      - '0.0.0.0:443:443' # HTTPS порт
     networks:
       - ai-network
     restart: unless-stopped
