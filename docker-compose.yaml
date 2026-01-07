@@ -25,8 +25,9 @@ services:
       - ./data/ollama:/root/.ollama # Сохраняем модели на хосте
       - ./models.txt:/models.txt # Список моделей для загрузки
     environment:
-      - OLLAMA_KEEP_ALIVE=24h # Поддержание моделей в памяти
-      - OLLAMA_HOST=0.0.0.0 # Доступ к API извне контейнера
+      - OLLAMA_KEEP_ALIVE=10m # Поддержание моделей в памяти
+      - OLLAMA_HOST=0.0.0.0   # Доступ к API извне контейнера
+      - OLLAMA_NUM_PARALLEL=4 # Число одновременно обслуживаемых запросов
     ports:
       - '0.0.0.0:11434:11434' # Ollama API порт
     networks:
