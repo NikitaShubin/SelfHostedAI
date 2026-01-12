@@ -42,6 +42,7 @@ services:
       - ENABLE_ADD_ONS=true # Включение дополнений
       - ENABLE_STT=true # Включение распознавания речи
       - ENABLE_TTS=true # Включение синтеза речи
+      - BYPASS_MODEL_ACCESS_CONTROL=true # Отключение любых ограничений на доступ к моделям
       - HF_HUB_OFFLINE=0 # Использовать онлайн-репозитории HuggingFace
     ports:
       - '0.0.0.0:8080:8080' # Прямой доступ к WebUI (альтернатива nginx)
