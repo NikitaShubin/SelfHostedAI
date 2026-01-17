@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Stack Monitor</title>
+    <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48dGV4dCB5PSIuOWVtIiBmb250LXNpemU9IjkwIiB4PSI1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+📊</text></c3ZnPg==">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        h1 { color: #333; text-align: center; font-size: 2em; margin-bottom: 10px; }
+        .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        .chart-box { background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #e0e0e0; }
+        canvas { max-height: 250px; }
+        .legend { text-align: center; margin-top: 10px; font-size: 14px; }
+        .legend span { margin: 0 15px; }
+        .system { color: #36A2EB; font-weight: 600; }
+        .ollama { color: #FF6384; font-weight: 600; }
+        .status { text-align: center; margin: 10px 0; color: #666; font-size: 14px; }
+        .debug-info { font-size: 12px; color: #555; margin-top: 8px; text-align: center; font-weight: 600; background: #eef2f7; padding: 4px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Мониторинг AI Stack</h1>
+        <div class="status">
+            Обновление каждые <span id="interval">-</span> сек | 
+            Хранение <span id="duration">-</span> мин |
+            RAM: <span id="totalRam">-</span> GB
+        </div>
+        
+        <div class="charts-grid">
+            <div class="chart-box">
+                <canvas id="cpuChart"></canvas>
+                <div class="legend">
+                    <span class="system">● Система</span>
+                    <span class="ollama">● Ollama</span>
+                </div>
+                <div class="debug-info" id="cpuValues"></div>
+            </div>
+            <div class="chart-box">
+                <canvas id="ramChart"></canvas>
+                <div class="legend">
+                    <span class="system">● Система</span>
+                    <span class="ollama">● Ollama</span>
+                </div>
+                <div class="debug-info" id="ramValues"></div>
+            </div>
+            <div class="chart-box">
+                <canvas id="gpuUtilChart"></canvas>
+                <div class="legend">
+                    <span class="system">● Система</span>
+                    <span class="ollama">● Ollama</span>
+                </div>
+                <div class="debug-info" id="gpuUtilValues"></div>
+            </div>
+            <div class="chart-box">
+                <canvas id="gpuMemChart"></canvas>
+                <div class="legend">
+                    <span class="system">● Система</span>
+                    <span class="ollama">● Ollama</span>
+                </div>
+                <div class="debug-info" id="gpuMemValues"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const updateInterval = {{ update_interval }};
+        const retentionMinutes = {{ retention_minutes }};
+        const totalSystemRam = {{ total_system_ram }};
+
+        document.getElementById('interval').textContent = updateInterval / 1000;
+        document.getElementById('duration').textContent = retentionMinutes;
+        document.getElementById('totalRam').textContent = totalSystemRam.toFixed(1);
+
+        const chartConfig = {
+            type: 'line',
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { display: false },
+                    y: { beginAtZero: true, max: 100 }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                animation: { duration: 0 }
+            }
+        };
+
+        const charts = {};
+
+        function initChart(id, label) {
+            const ctx = document.getElementById(id).getContext('2d');
+            charts[id] = new Chart(ctx, {
+                ...chartConfig,
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Система',
+                        data: [],
+                        borderColor: '#36A2EB',
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 1,
+                        pointRadius: 2
+                    }, {
+                        label: 'Ollama',
+                        data: [],
+                        borderColor: '#FF6384',
+                        backgroundColor: 'rgba(255, 99, 132, 0.4)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 3,
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    ...chartConfig.options,
+                    plugins: {
+                        ...chartConfig.options.plugins,
+                        title: { display: true, text: label }
+                    }
+                }
+            });
+        }
+
+        function updateChart(chartId, timestamps, systemData, ollamaData) {
+            const chart = charts[chartId];
+            if (!chart) return;
+
+            chart.data.labels = timestamps.map(ts => new Date(ts).toLocaleTimeString());
+            chart.data.datasets[0].data = systemData;
+            chart.data.datasets[1].data = ollamaData;
+            chart.update();
+
+            // Обновляем debug-info для всех графиков
+            const systemLen = systemData.length;
+            const ollamaLen = ollamaData.length;
+            const lastSystem = systemLen > 0 ? systemData[systemLen - 1] : 0;
+            const lastOllama = ollamaLen > 0 ? ollamaData[ollamaLen - 1] : 0;
+            
+            const valuesId = chartId.replace('Chart', 'Values');
+            const valuesElement = document.getElementById(valuesId);
+            if (valuesElement) {
+                if (chartId === 'ramChart') {
+                    const systemRamGb = lastSystem * totalSystemRam / 100;
+                    const ollamaRamGb = lastOllama * totalSystemRam / 100;
+                    valuesElement.textContent = `Система: ${systemRamGb.toFixed(1)}GB (${lastSystem.toFixed(1)}%) | Ollama: ${ollamaRamGb.toFixed(1)}GB (${lastOllama.toFixed(1)}%)`;
+                } else {
+                    valuesElement.textContent = `Система: ${lastSystem.toFixed(1)}% | Ollama: ${lastOllama.toFixed(1)}%`;
+                }
+            }
+        }
+
+        async function fetchMetrics() {
+            try {
+                const response = await fetch('/api/metrics');
+                const data = await response.json();
+                
+                if (data.system.cpu && data.ollama.cpu) {
+                    updateChart('cpuChart', data.timestamps, data.system.cpu, data.ollama.cpu);
+                    updateChart('ramChart', data.timestamps, data.system.ram_percent, data.ollama.ram_percent);
+                    updateChart('gpuUtilChart', data.timestamps, data.system.gpu_util, data.ollama.gpu_util);
+                    updateChart('gpuMemChart', data.timestamps, data.system.gpu_mem, data.ollama.gpu_mem);
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки метрик:', error);
+            }
+        }
+
+        initChart('cpuChart', 'CPU (%)');
+        initChart('ramChart', 'RAM (%)');
+        initChart('gpuUtilChart', 'GPU Использование (%)');
+        initChart('gpuMemChart', 'GPU Память (%)');
+
+        fetchMetrics();
+        setInterval(fetchMetrics, updateInterval);
+    </script>
+</body>
+</html>
