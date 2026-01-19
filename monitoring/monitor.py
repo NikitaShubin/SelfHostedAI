@@ -10,7 +10,6 @@ from datetime import datetime
 import logging
 import json
 import subprocess
-import sys
 
 import psutil
 try:
@@ -385,8 +384,7 @@ def collect_metrics():
 def index():
     return render_template('index.html',
                          update_interval=UPDATE_INTERVAL * 1000,
-                         retention_minutes=RETENTION_TIME // 60,
-                         total_system_ram=total_system_ram_gb)
+                         retention_minutes=RETENTION_TIME // 60)
 
 @app.route('/api/metrics')
 def get_metrics_api():
@@ -394,6 +392,32 @@ def get_metrics_api():
         'timestamps': list(metrics['timestamps']),
         'system': {k: list(v) for k, v in metrics['system'].items()},
         'ollama': {k: list(v) for k, v in metrics['ollama'].items()}
+    })
+
+@app.route('/api/system-info')
+def get_system_info():
+    """Возвращает информацию о системе"""
+    global total_system_ram_gb, gpu_count, gpu_handles, NVIDIA_AVAILABLE
+    
+    # Получаем количество CPU ядер
+    cpu_cores = psutil.cpu_count()
+    
+    # Получаем общий объем GPU памяти
+    total_gpu_mem_gb = 0
+    if NVIDIA_AVAILABLE and gpu_handles:
+        for handle in gpu_handles:
+            try:
+                mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                total_gpu_mem_gb += mem_info.total / (1024**3)
+            except Exception as e:
+                logger.debug(f"Ошибка получения памяти GPU: {e}")
+    
+    return jsonify({
+        'success': True,
+        'cpu_cores': cpu_cores,
+        'total_ram_gb': round(total_system_ram_gb, 2),
+        'total_gpus': gpu_count,
+        'total_gpu_mem_gb': round(total_gpu_mem_gb, 2)
     })
 
 logger.info("=== ИНИЦИАЛИЗАЦИЯ МОНИТОРИНГА ===")

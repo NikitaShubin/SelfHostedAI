@@ -4,64 +4,445 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Stack Monitor</title>
-    <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48dGV4dCB5PSIuOWVtIiBmb250LXNpemU9IjkwIiB4PSI1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+📊</text></c3ZnPg==">
+    <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cGF0aCBmaWxsPSIjMzNjZmZmIiBkPSJNNTAgMTVhMzUgMzUgMCAxIDAgMCA3MCAzNSAzNSAwIDEgMCAwLTcwem0wIDVhMzAgMzAgMCAxIDEgMCA2MCAzMCAzMCAwIDEgMSAwLTYwek00MSA0NWgxOHYxMEg0MXpNNTEgNzBsLTEwLTIwIDItMSA4IDE4em0tMi01bC04LTE4IDItMSA4IDE4em0yMCAyMGwtMTAtMjAgMi0xIDggMTh6bS0yLTVsLTgtMTggMi0xIDggMTh6Ii8+PHBhdGggZmlsbD0iIzAwOTZmZiIgZD0iTTUwIDIwYzE2LjU0OCAwIDMwIDE3Ljk1MiAzMCAzNS4wMzcgMCAxNy4wODYtMTMuNDUyIDMwLjk2My0zMCAzMC45NjNzLTMwLTEzLjk2My0zMC0zMC45NjNDMjAgMzcuOTUyIDMzLjQ1MiAyMCA1MCAyMG0wLTExQzMyLjk1NyA5IDE4IDI1LjIyNyAxOCA0NS4wMzcgMCA2NC44NDggMTQuOTU3IDgxIDMyIDgxczMyLTE2LjE1MiAzMi0zNS45NjNDNjQgMjUuMjI3IDQ5LjA0MyA5IDMyIDl6Ii8+PC9zdmc+Cg==">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-        h1 { color: #333; text-align: center; font-size: 2em; margin-bottom: 10px; }
-        .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-        .chart-box { background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #e0e0e0; }
-        canvas { max-height: 250px; }
-        .legend { text-align: center; margin-top: 10px; font-size: 14px; }
-        .legend span { margin: 0 15px; }
-        .system { color: #36A2EB; font-weight: 600; }
-        .ollama { color: #FF6384; font-weight: 600; }
-        .status { text-align: center; margin: 10px 0; color: #666; font-size: 14px; }
-        .debug-info { font-size: 12px; color: #555; margin-top: 8px; text-align: center; font-weight: 600; background: #eef2f7; padding: 4px; border-radius: 4px; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+            margin: 0;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        }
+        
+        .header-left {
+            flex: 1;
+        }
+        
+        .header h1 {
+            color: #f8fafc;
+            font-size: 1.8em;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .header h1::before {
+            content: "🤖";
+            font-size: 1em;
+            filter: drop-shadow(0 2px 4px rgba(59, 130, 246, 0.3));
+        }
+        
+        .header h1::after {
+            content: "📊";
+            font-size: 1em;
+            filter: drop-shadow(0 2px 4px rgba(59, 130, 246, 0.3));
+        }
+        
+        .header p {
+            color: #94a3b8;
+            font-size: 0.85em;
+            margin-top: 3px;
+        }
+        
+        .header-info {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 8px;
+            padding: 6px 10px;
+            border: 1px solid rgba(148, 163, 184, 0.1);
+            min-width: 120px;
+        }
+        
+        .info-label {
+            color: #94a3b8;
+            font-size: 0.75em;
+            margin-bottom: 2px;
+            white-space: nowrap;
+        }
+        
+        .info-value {
+            color: #e2e8f0;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.85em;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        
+        .status-connecting {
+            color: #fbbf24 !important;
+        }
+        
+        .status-connected {
+            color: #4ade80 !important;
+        }
+        
+        .status-error {
+            color: #f87171 !important;
+        }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        
+        @media (max-width: 1200px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .chart-box {
+            background: rgba(15, 23, 42, 0.6);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: hidden;
+            min-height: 340px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.3),
+                0 0 0 1px rgba(148, 163, 184, 0.1);
+        }
+        
+        .chart-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #3b82f6, #60a5fa, #93c5fd);
+            border-radius: 12px 12px 0 0;
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        }
+        
+        .chart-title {
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #f1f5f9;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .chart-icon {
+            font-size: 1em;
+        }
+        
+        .chart-container {
+            flex: 1;
+            position: relative;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .no-data {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.9em;
+            padding: 20px;
+        }
+        
+        .current-values {
+            margin-top: auto;
+            padding: 8px 10px;
+            background: rgba(15, 23, 42, 0.3);
+            border-radius: 8px;
+            font-size: 0.8em;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .values-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+        
+        .value-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 6px;
+            border-radius: 4px;
+            background: rgba(30, 41, 59, 0.2);
+        }
+        
+        .value-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        
+        .system-dot {
+            background: #60a5fa;
+            box-shadow: 0 0 4px rgba(96, 165, 250, 0.5);
+        }
+        
+        .ollama-dot {
+            background: #f472b6;
+            box-shadow: 0 0 4px rgba(244, 114, 182, 0.5);
+        }
+        
+        .value-content {
+            flex: 1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .value-name {
+            color: #94a3b8;
+            font-size: 0.8em;
+            white-space: nowrap;
+        }
+        
+        .value-numbers {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 1px;
+        }
+        
+        .value-percent {
+            font-weight: 600;
+            font-size: 0.9em;
+            white-space: nowrap;
+        }
+        
+        .system-percent {
+            color: #60a5fa;
+        }
+        
+        .ollama-percent {
+            color: #f472b6;
+        }
+        
+        .value-absolute {
+            font-size: 0.75em;
+            color: #cbd5e1;
+            opacity: 0.9;
+            white-space: nowrap;
+        }
+        
+        canvas {
+            width: 100% !important;
+            height: 200px !important;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>📊 Мониторинг AI Stack</h1>
-        <div class="status">
-            Обновление каждые <span id="interval">-</span> сек | 
-            Хранение <span id="duration">-</span> мин |
-            RAM: <span id="totalRam">-</span> GB
+    <div class="header">
+        <div class="header-left">
+            <h1>AI Stack Monitor</h1>
+            <p>Мониторинг ресурсов системы и AI-сервисов в реальном времени</p>
+        </div>
+        <div class="header-info">
+            <div class="info-item">
+                <div class="info-label">Интервал</div>
+                <div class="info-value" id="interval">-</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Продолжительность</div>
+                <div class="info-value" id="duration">-</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Последнее обновление</div>
+                <div class="info-value status-connecting" id="lastUpdate">Подключение...</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="charts-grid">
+        <!-- CPU -->
+        <div class="chart-box">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <span class="chart-icon">⚡</span> CPU
+                </div>
+            </div>
+            <div class="chart-container">
+                <div class="no-data" id="cpuNoData">Данные отсутствуют</div>
+                <canvas id="cpuChart"></canvas>
+            </div>
+            <div class="current-values">
+                <div class="values-grid">
+                    <div class="value-item">
+                        <div class="value-dot system-dot"></div>
+                        <div class="value-content">
+                            <div class="value-name">Система</div>
+                            <div class="value-numbers">
+                                <div class="value-percent system-percent" id="cpuSystemPercent">0%</div>
+                                <div class="value-absolute" id="cpuSystemCores">0 ядер</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="value-item">
+                        <div class="value-dot ollama-dot"></div>
+                        <div class="value-content">
+                            <div class="value-name">Ollama</div>
+                            <div class="value-numbers">
+                                <div class="value-percent ollama-percent" id="cpuOllamaPercent">0%</div>
+                                <div class="value-absolute" id="cpuOllamaCores">0 ядер</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         
-        <div class="charts-grid">
-            <div class="chart-box">
-                <canvas id="cpuChart"></canvas>
-                <div class="legend">
-                    <span class="system">● Система</span>
-                    <span class="ollama">● Ollama</span>
+        <!-- RAM -->
+        <div class="chart-box">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <span class="chart-icon">💾</span> RAM
                 </div>
-                <div class="debug-info" id="cpuValues"></div>
             </div>
-            <div class="chart-box">
+            <div class="chart-container">
+                <div class="no-data" id="ramNoData">Данные отсутствуют</div>
                 <canvas id="ramChart"></canvas>
-                <div class="legend">
-                    <span class="system">● Система</span>
-                    <span class="ollama">● Ollama</span>
-                </div>
-                <div class="debug-info" id="ramValues"></div>
             </div>
-            <div class="chart-box">
+            <div class="current-values">
+                <div class="values-grid">
+                    <div class="value-item">
+                        <div class="value-dot system-dot"></div>
+                        <div class="value-content">
+                            <div class="value-name">Система</div>
+                            <div class="value-numbers">
+                                <div class="value-percent system-percent" id="ramSystemPercent">0%</div>
+                                <div class="value-absolute" id="ramSystemValue">0 GB</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="value-item">
+                        <div class="value-dot ollama-dot"></div>
+                        <div class="value-content">
+                            <div class="value-name">Ollama</div>
+                            <div class="value-numbers">
+                                <div class="value-percent ollama-percent" id="ramOllamaPercent">0%</div>
+                                <div class="value-absolute" id="ramOllamaValue">0 GB</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- GPU Utilization -->
+        <div class="chart-box">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <span class="chart-icon">🎮</span> GPU
+                </div>
+            </div>
+            <div class="chart-container">
+                <div class="no-data" id="gpuUtilNoData">Данные отсутствуют</div>
                 <canvas id="gpuUtilChart"></canvas>
-                <div class="legend">
-                    <span class="system">● Система</span>
-                    <span class="ollama">● Ollama</span>
-                </div>
-                <div class="debug-info" id="gpuUtilValues"></div>
             </div>
-            <div class="chart-box">
-                <canvas id="gpuMemChart"></canvas>
-                <div class="legend">
-                    <span class="system">● Система</span>
-                    <span class="ollama">● Ollama</span>
+            <div class="current-values">
+                <div class="values-grid">
+                    <div class="value-item">
+                        <div class="value-dot system-dot"></div>
+                        <div class="value-content">
+                            <div class="value-name">Система</div>
+                            <div class="value-numbers">
+                                <div class="value-percent system-percent" id="gpuUtilSystemPercent">0%</div>
+                                <div class="value-absolute" id="gpuUtilSystemValue">0 GPU</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="value-item">
+                        <div class="value-dot ollama-dot"></div>
+                        <div class="value-content">
+                            <div class="value-name">Ollama</div>
+                            <div class="value-numbers">
+                                <div class="value-percent ollama-percent" id="gpuUtilOllamaPercent">0%</div>
+                                <div class="value-absolute" id="gpuUtilOllamaValue">0 GPU</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="debug-info" id="gpuMemValues"></div>
+            </div>
+        </div>
+        
+        <!-- GPU Memory -->
+        <div class="chart-box">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <span class="chart-icon">🧠</span> GPU RAM
+                </div>
+            </div>
+            <div class="chart-container">
+                <div class="no-data" id="gpuMemNoData">Данные отсутствуют</div>
+                <canvas id="gpuMemChart"></canvas>
+            </div>
+            <div class="current-values">
+                <div class="values-grid">
+                    <div class="value-item">
+                        <div class="value-dot system-dot"></div>
+                        <div class="value-content">
+                            <div class="value-name">Система</div>
+                            <div class="value-numbers">
+                                <div class="value-percent system-percent" id="gpuMemSystemPercent">0%</div>
+                                <div class="value-absolute" id="gpuMemSystemValue">0 GB</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="value-item">
+                        <div class="value-dot ollama-dot"></div>
+                        <div class="value-content">
+                            <div class="value-name">Ollama</div>
+                            <div class="value-numbers">
+                                <div class="value-percent ollama-percent" id="gpuMemOllamaPercent">0%</div>
+                                <div class="value-absolute" id="gpuMemOllamaValue">0 GB</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -69,118 +450,475 @@
     <script>
         const updateInterval = {{ update_interval }};
         const retentionMinutes = {{ retention_minutes }};
-        const totalSystemRam = {{ total_system_ram }};
+        
+        // Системная информация
+        let systemInfo = {
+            total_ram_gb: 0,
+            total_gpu_mem_gb: 0,
+            cpu_cores: 0,
+            total_gpus: 0
+        };
+        
+        let isConnected = false;
+        let connectionErrorCount = 0;
+        const maxConnectionErrors = 3;
+        let lastSuccessfulUpdate = null;
+        let updateTimer = null;
 
-        document.getElementById('interval').textContent = updateInterval / 1000;
-        document.getElementById('duration').textContent = retentionMinutes;
-        document.getElementById('totalRam').textContent = totalSystemRam.toFixed(1);
+        document.getElementById('interval').textContent = `${updateInterval / 1000} сек`;
+        document.getElementById('duration').textContent = `${retentionMinutes} мин`;
 
-        const chartConfig = {
-            type: 'line',
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: { display: false },
-                    y: { beginAtZero: true, max: 100 }
-                },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { mode: 'index', intersect: false }
-                },
-                animation: { duration: 0 }
+        function updateStatusElement(status, message = '') {
+            const element = document.getElementById('lastUpdate');
+            
+            // Убираем все классы статуса
+            element.classList.remove('status-connecting', 'status-connected', 'status-error');
+            
+            switch(status) {
+                case 'connecting':
+                    element.classList.add('status-connecting');
+                    element.textContent = message || 'Подключение...';
+                    break;
+                case 'connected':
+                    element.classList.add('status-connected');
+                    element.textContent = message;
+                    break;
+                case 'error':
+                    element.classList.add('status-error');
+                    element.textContent = message || 'Нет соединения';
+                    break;
             }
+        }
+
+        function updateLastUpdateTime(timestamp = null) {
+            if (timestamp) {
+                const time = new Date(timestamp);
+                const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                updateStatusElement('connected', timeStr);
+                lastSuccessfulUpdate = timestamp;
+            } else if (isConnected && lastSuccessfulUpdate) {
+                const time = new Date(lastSuccessfulUpdate);
+                const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                updateStatusElement('connected', timeStr);
+            }
+        }
+
+        // Конфигурация для графиков с синхронизированными шкалами
+        const createChartConfig = (chartId, totalResource) => {
+            const configs = {
+                'cpuChart': {
+                    title: 'CPU',
+                    left: {
+                        label: 'Ядра',
+                        color: '#cbd5e1'
+                    }
+                },
+                'ramChart': {
+                    title: 'RAM',
+                    left: {
+                        label: 'GB',
+                        color: '#cbd5e1'
+                    }
+                },
+                'gpuUtilChart': {
+                    title: 'GPU',
+                    left: {
+                        label: 'GPU',
+                        color: '#cbd5e1'
+                    }
+                },
+                'gpuMemChart': {
+                    title: 'GPU RAM',
+                    left: {
+                        label: 'GB',
+                        color: '#cbd5e1'
+                    }
+                }
+            };
+
+            const config = configs[chartId] || configs['cpuChart'];
+            const maxLeft = Math.max(1, totalResource);
+            const maxRight = 100; // Проценты всегда 0-100%
+            
+            return {
+                type: 'line',
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { 
+                            display: false,
+                            grid: { color: 'rgba(148, 163, 184, 0.1)' }
+                        },
+                        left: { 
+                            type: 'linear',
+                            position: 'left',
+                            min: 0,
+                            max: maxLeft,
+                            grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                            ticks: { 
+                                color: config.left.color,
+                                font: { size: 10 },
+                                stepSize: Math.max(1, Math.floor(maxLeft / 4)),
+                                callback: (value) => {
+                                    if (chartId === 'cpuChart' || chartId === 'gpuUtilChart') {
+                                        return value % 1 === 0 ? `${value}` : '';
+                                    }
+                                    return value % 1 === 0 ? `${value}` : `${value.toFixed(1)}`;
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: config.left.label,
+                                color: config.left.color,
+                                font: { size: 10 }
+                            }
+                        },
+                        right: {
+                            type: 'linear',
+                            position: 'right',
+                            min: 0,
+                            max: maxRight,
+                            grid: { drawOnChartArea: false },
+                            ticks: { 
+                                color: '#94a3b8',
+                                font: { size: 10 },
+                                stepSize: 25,
+                                callback: (value) => `${value}%`
+                            },
+                            title: {
+                                display: true,
+                                text: '%',
+                                color: '#94a3b8',
+                                font: { size: 10 }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { 
+                            mode: 'index', 
+                            intersect: false,
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#e2e8f0',
+                            borderColor: '#3b82f6',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    const value = context.parsed.y;
+                                    const percent = totalResource > 0 ? ((value * 100 / totalResource).toFixed(1)) : 0;
+                                    
+                                    switch(chartId) {
+                                        case 'cpuChart':
+                                            label += `${value.toFixed(1)} ядер (${percent}%)`;
+                                            break;
+                                        case 'ramChart':
+                                            label += `${value.toFixed(1)} GB (${percent}%)`;
+                                            break;
+                                        case 'gpuUtilChart':
+                                            label += `${value.toFixed(1)} GPU (${percent}%)`;
+                                            break;
+                                        case 'gpuMemChart':
+                                            label += `${value.toFixed(1)} GB (${percent}%)`;
+                                            break;
+                                        default:
+                                            label += `${value.toFixed(1)}`;
+                                    }
+                                    
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    animation: { duration: 0 },
+                    elements: {
+                        point: { radius: 0, hoverRadius: 4 },
+                        line: { tension: 0.4, borderWidth: 2 }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            };
         };
 
         const charts = {};
+        let metricsHistory = {
+            timestamps: [],
+            system: { cpu: [], ram_percent: [], ram_gb: [], gpu_util: [], gpu_mem: [] },
+            ollama: { cpu: [], ram_percent: [], ram_gb: [], gpu_util: [], gpu_mem: [] }
+        };
 
-        function initChart(id, label) {
-            const ctx = document.getElementById(id).getContext('2d');
-            charts[id] = new Chart(ctx, {
-                ...chartConfig,
+        function showChart(chartId, show) {
+            const canvas = document.getElementById(chartId);
+            const noData = document.getElementById(chartId.replace('Chart', 'NoData'));
+            
+            if (canvas && noData) {
+                if (show) {
+                    canvas.style.display = 'block';
+                    noData.style.display = 'none';
+                } else {
+                    canvas.style.display = 'none';
+                    noData.style.display = 'block';
+                }
+            }
+        }
+
+        function initChart(chartId) {
+            const ctx = document.getElementById(chartId).getContext('2d');
+            
+            charts[chartId] = new Chart(ctx, {
+                ...createChartConfig(chartId, 1),
                 data: {
                     labels: [],
-                    datasets: [{
-                        label: 'Система',
-                        data: [],
-                        borderColor: '#36A2EB',
-                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                        fill: true,
-                        tension: 0.4,
-                        borderWidth: 1,
-                        pointRadius: 2
-                    }, {
-                        label: 'Ollama',
-                        data: [],
-                        borderColor: '#FF6384',
-                        backgroundColor: 'rgba(255, 99, 132, 0.4)',
-                        fill: true,
-                        tension: 0.4,
-                        borderWidth: 3,
-                        pointRadius: 4
-                    }]
-                },
-                options: {
-                    ...chartConfig.options,
-                    plugins: {
-                        ...chartConfig.options.plugins,
-                        title: { display: true, text: label }
-                    }
+                    datasets: [
+                        {
+                            label: 'Система',
+                            data: [],
+                            borderColor: '#60a5fa',
+                            backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            pointHoverRadius: 4,
+                            yAxisID: 'left'
+                        },
+                        {
+                            label: 'Ollama',
+                            data: [],
+                            borderColor: '#f472b6',
+                            backgroundColor: 'rgba(244, 114, 182, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            pointHoverRadius: 4,
+                            yAxisID: 'left'
+                        }
+                    ]
                 }
             });
+            
+            // Изначально скрываем график
+            showChart(chartId, false);
         }
 
         function updateChart(chartId, timestamps, systemData, ollamaData) {
             const chart = charts[chartId];
             if (!chart) return;
 
-            chart.data.labels = timestamps.map(ts => new Date(ts).toLocaleTimeString());
-            chart.data.datasets[0].data = systemData;
-            chart.data.datasets[1].data = ollamaData;
+            // Если нет данных, скрываем график
+            if (timestamps.length === 0 || systemData.length === 0 || ollamaData.length === 0) {
+                showChart(chartId, false);
+                return;
+            }
+            
+            showChart(chartId, true);
+
+            // Ограничиваем количество точек для отображения
+            const maxPoints = 30;
+            const startIdx = Math.max(0, timestamps.length - maxPoints);
+            
+            chart.data.labels = timestamps.slice(startIdx).map(ts => {
+                const date = new Date(ts);
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            });
+            
+            chart.data.datasets[0].data = systemData.slice(startIdx);
+            chart.data.datasets[1].data = ollamaData.slice(startIdx);
+            
+            // Получаем общий ресурс для этого графика
+            let totalResource = 0;
+            switch(chartId) {
+                case 'cpuChart':
+                    totalResource = systemInfo.cpu_cores;
+                    break;
+                case 'ramChart':
+                    totalResource = systemInfo.total_ram_gb;
+                    break;
+                case 'gpuUtilChart':
+                    totalResource = systemInfo.total_gpus;
+                    break;
+                case 'gpuMemChart':
+                    totalResource = systemInfo.total_gpu_mem_gb;
+                    break;
+            }
+            
+            // Обновляем конфигурацию шкал с правильным totalResource
+            const config = createChartConfig(chartId, totalResource);
+            chart.options.scales = config.options.scales;
+            
             chart.update();
 
-            // Обновляем debug-info для всех графиков
             const systemLen = systemData.length;
             const ollamaLen = ollamaData.length;
             const lastSystem = systemLen > 0 ? systemData[systemLen - 1] : 0;
             const lastOllama = ollamaLen > 0 ? ollamaData[ollamaLen - 1] : 0;
-            
-            const valuesId = chartId.replace('Chart', 'Values');
-            const valuesElement = document.getElementById(valuesId);
-            if (valuesElement) {
-                if (chartId === 'ramChart') {
-                    const systemRamGb = lastSystem * totalSystemRam / 100;
-                    const ollamaRamGb = lastOllama * totalSystemRam / 100;
-                    valuesElement.textContent = `Система: ${systemRamGb.toFixed(1)}GB (${lastSystem.toFixed(1)}%) | Ollama: ${ollamaRamGb.toFixed(1)}GB (${lastOllama.toFixed(1)}%)`;
-                } else {
-                    valuesElement.textContent = `Система: ${lastSystem.toFixed(1)}% | Ollama: ${lastOllama.toFixed(1)}%`;
+
+            switch(chartId) {
+                case 'cpuChart':
+                    const systemCpuPercent = totalResource > 0 ? ((lastSystem * 100 / totalResource).toFixed(1)) : 0;
+                    const ollamaCpuPercent = totalResource > 0 ? ((lastOllama * 100 / totalResource).toFixed(1)) : 0;
+                    document.getElementById('cpuSystemPercent').textContent = `${systemCpuPercent}%`;
+                    document.getElementById('cpuOllamaPercent').textContent = `${ollamaCpuPercent}%`;
+                    document.getElementById('cpuSystemCores').textContent = `${lastSystem.toFixed(1)} ядер`;
+                    document.getElementById('cpuOllamaCores').textContent = `${lastOllama.toFixed(1)} ядер`;
+                    break;
+                case 'ramChart':
+                    const systemRamPercent = totalResource > 0 ? ((lastSystem * 100 / totalResource).toFixed(1)) : 0;
+                    const ollamaRamPercent = totalResource > 0 ? ((lastOllama * 100 / totalResource).toFixed(1)) : 0;
+                    document.getElementById('ramSystemPercent').textContent = `${systemRamPercent}%`;
+                    document.getElementById('ramOllamaPercent').textContent = `${ollamaRamPercent}%`;
+                    document.getElementById('ramSystemValue').textContent = `${lastSystem.toFixed(1)} GB`;
+                    document.getElementById('ramOllamaValue').textContent = `${lastOllama.toFixed(1)} GB`;
+                    break;
+                case 'gpuUtilChart':
+                    const systemGpuPercent = totalResource > 0 ? ((lastSystem * 100 / totalResource).toFixed(1)) : 0;
+                    const ollamaGpuPercent = totalResource > 0 ? ((lastOllama * 100 / totalResource).toFixed(1)) : 0;
+                    document.getElementById('gpuUtilSystemPercent').textContent = `${systemGpuPercent}%`;
+                    document.getElementById('gpuUtilOllamaPercent').textContent = `${ollamaGpuPercent}%`;
+                    document.getElementById('gpuUtilSystemValue').textContent = `${lastSystem.toFixed(1)} GPU`;
+                    document.getElementById('gpuUtilOllamaValue').textContent = `${lastOllama.toFixed(1)} GPU`;
+                    break;
+                case 'gpuMemChart':
+                    const systemGpuMemPercent = totalResource > 0 ? ((lastSystem * 100 / totalResource).toFixed(1)) : 0;
+                    const ollamaGpuMemPercent = totalResource > 0 ? ((lastOllama * 100 / totalResource).toFixed(1)) : 0;
+                    document.getElementById('gpuMemSystemPercent').textContent = `${systemGpuMemPercent}%`;
+                    document.getElementById('gpuMemOllamaPercent').textContent = `${ollamaGpuMemPercent}%`;
+                    document.getElementById('gpuMemSystemValue').textContent = `${lastSystem.toFixed(1)} GB`;
+                    document.getElementById('gpuMemOllamaValue').textContent = `${lastOllama.toFixed(1)} GB`;
+                    break;
+            }
+        }
+
+        async function fetchSystemInfo() {
+            try {
+                const response = await fetch('/api/system-info', { signal: AbortSignal.timeout(5000) });
+                if (!response.ok) throw new Error('Network response was not ok');
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    systemInfo = {
+                        total_ram_gb: data.total_ram_gb,
+                        total_gpu_mem_gb: data.total_gpu_mem_gb,
+                        cpu_cores: data.cpu_cores,
+                        total_gpus: data.total_gpus
+                    };
+                    
+                    console.log('System info loaded:', systemInfo);
+                    connectionErrorCount = 0;
+                    return true;
                 }
+            } catch (error) {
+                console.error('Ошибка загрузки информации о системе:', error);
+                connectionErrorCount++;
+                updateStatusElement('error', 'Сервер недоступен');
+                return false;
             }
         }
 
         async function fetchMetrics() {
             try {
-                const response = await fetch('/api/metrics');
+                const response = await fetch('/api/metrics', { signal: AbortSignal.timeout(5000) });
+                if (!response.ok) throw new Error('Network response was not ok');
+                
                 const data = await response.json();
                 
-                if (data.system.cpu && data.ollama.cpu) {
-                    updateChart('cpuChart', data.timestamps, data.system.cpu, data.ollama.cpu);
-                    updateChart('ramChart', data.timestamps, data.system.ram_percent, data.ollama.ram_percent);
-                    updateChart('gpuUtilChart', data.timestamps, data.system.gpu_util, data.ollama.gpu_util);
-                    updateChart('gpuMemChart', data.timestamps, data.system.gpu_mem, data.ollama.gpu_mem);
+                if (data.system.cpu && data.ollama.cpu && data.timestamps.length > 0) {
+                    // Сохраняем историю
+                    metricsHistory.timestamps = data.timestamps;
+                    metricsHistory.system.cpu = data.system.cpu;
+                    metricsHistory.ollama.cpu = data.ollama.cpu;
+                    metricsHistory.system.ram_percent = data.system.ram_percent;
+                    metricsHistory.ollama.ram_percent = data.ollama.ram_percent;
+                    metricsHistory.system.gpu_util = data.system.gpu_util;
+                    metricsHistory.ollama.gpu_util = data.ollama.gpu_util;
+                    metricsHistory.system.gpu_mem = data.system.gpu_mem;
+                    metricsHistory.ollama.gpu_mem = data.ollama.gpu_mem;
+                    
+                    // Преобразуем проценты в абсолютные значения
+                    const systemCpuAbsolute = data.system.cpu.map(p => (p * systemInfo.cpu_cores / 100));
+                    const ollamaCpuAbsolute = data.ollama.cpu.map(p => (p * systemInfo.cpu_cores / 100));
+                    
+                    const systemRamAbsolute = data.system.ram_percent.map(p => (p * systemInfo.total_ram_gb / 100));
+                    const ollamaRamAbsolute = data.ollama.ram_percent.map(p => (p * systemInfo.total_ram_gb / 100));
+                    
+                    const systemGpuUtilAbsolute = data.system.gpu_util.map(p => (p * systemInfo.total_gpus / 100));
+                    const ollamaGpuUtilAbsolute = data.ollama.gpu_util.map(p => (p * systemInfo.total_gpus / 100));
+                    
+                    const systemGpuMemAbsolute = data.system.gpu_mem.map(p => (p * systemInfo.total_gpu_mem_gb / 100));
+                    const ollamaGpuMemAbsolute = data.ollama.gpu_mem.map(p => (p * systemInfo.total_gpu_mem_gb / 100));
+                    
+                    updateChart('cpuChart', data.timestamps, systemCpuAbsolute, ollamaCpuAbsolute);
+                    updateChart('ramChart', data.timestamps, systemRamAbsolute, ollamaRamAbsolute);
+                    updateChart('gpuUtilChart', data.timestamps, systemGpuUtilAbsolute, ollamaGpuUtilAbsolute);
+                    updateChart('gpuMemChart', data.timestamps, systemGpuMemAbsolute, ollamaGpuMemAbsolute);
+                    
+                    const latestTimestamp = data.timestamps[data.timestamps.length - 1];
+                    updateLastUpdateTime(latestTimestamp);
+                    
+                    isConnected = true;
+                    connectionErrorCount = 0;
+                    return true;
+                } else {
+                    // Данные есть, но они пустые
+                    ['cpuChart', 'ramChart', 'gpuUtilChart', 'gpuMemChart'].forEach(chartId => {
+                        showChart(chartId, false);
+                    });
+                    updateStatusElement('error', 'Нет данных');
+                    return false;
                 }
             } catch (error) {
                 console.error('Ошибка загрузки метрик:', error);
+                connectionErrorCount++;
+                
+                if (connectionErrorCount >= maxConnectionErrors) {
+                    isConnected = false;
+                    updateStatusElement('error', 'Сервер недоступен');
+                    // Скрываем все графики
+                    ['cpuChart', 'ramChart', 'gpuUtilChart', 'gpuMemChart'].forEach(chartId => {
+                        showChart(chartId, false);
+                    });
+                    // Останавливаем таймер обновления
+                    if (updateTimer) {
+                        clearInterval(updateTimer);
+                        updateTimer = null;
+                    }
+                }
+                return false;
             }
         }
 
-        initChart('cpuChart', 'CPU (%)');
-        initChart('ramChart', 'RAM (%)');
-        initChart('gpuUtilChart', 'GPU Использование (%)');
-        initChart('gpuMemChart', 'GPU Память (%)');
+        // Инициализация графиков
+        ['cpuChart', 'ramChart', 'gpuUtilChart', 'gpuMemChart'].forEach(initChart);
 
-        fetchMetrics();
-        setInterval(fetchMetrics, updateInterval);
+        // Загружаем информацию о системе и метрики
+        async function init() {
+            updateStatusElement('connecting', 'Подключение...');
+            const systemInfoLoaded = await fetchSystemInfo();
+            
+            if (systemInfoLoaded) {
+                isConnected = true;
+                await fetchMetrics();
+                
+                // Обновляем данные с заданным интервалом
+                updateTimer = setInterval(async () => {
+                    await fetchMetrics();
+                }, updateInterval);
+            } else {
+                isConnected = false;
+            }
+        }
+
+        init();
     </script>
 </body>
 </html>

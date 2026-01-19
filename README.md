@@ -10,6 +10,7 @@
 - **Локальные LLM модели** через Ollama
 - **Веб-интерфейс** Open WebUI (аналог ChatGPT UI)
 - **Голосовой ввод/вывод (STT/TTS)** средствами WebUI (доступно при HTTPS-подключении)
+- **Встроенный мониторинг ресурсов** с веб-интерфейсом и графиками в реальном времени
 - **Автоматическая загрузка моделей** из конфигурационного файла
 - **HTTP/HTTPS поддержка** через Nginx (самоподписанные сертификаты для HTTPS)
 
@@ -31,16 +32,10 @@ flowchart TD
     Nginx["🛡️ Nginx<br/>HTTP/HTTPS прокси"]
     WebUI["💻 Open WebUI"]
     Ollama["🤖 Ollama<br/>LLM сервер"]
+    Monitoring["📈 Мониторинг<br/>Ресурсы системы"]
 
     Models["📦 Загруженные модели"]
     Config["⚙️ Конфигурация<br/>__models.txt__"]
-
-    %% Невидимые узлы для разделения стрелок:
-    %% subgraph " "
-    %%     p1[" "]:::invisible
-    %%     p2[" "]:::invisible
-    %%     p3[" "]:::invisible
-    %% end
 
     %% Пользовательские связи:
     User --> Browser
@@ -49,18 +44,23 @@ flowchart TD
     %% Сетевые связи:
     Browser    -- :80/443 --> Nginx
     Browser    -- :8080   --> WebUI
+    Browser    -- :5000   --> Monitoring
     APIClients -- :11434  --> Ollama
     
     %% Добавляем цвета к портам:
     linkStyle 2 stroke:blue,stroke-width:1px;
     linkStyle 3 stroke:green,stroke-width:1px;
     linkStyle 4 stroke:orange,stroke-width:1px;
+    linkStyle 5 stroke:brown,stroke-width:1px;
 
     %% Взаимодействие через веб-интерфейс:
     Nginx --> WebUI
 
     %% Взаимодействие WebUI с Ollama:
     WebUI --> Ollama
+
+    %% Взаимодействие Мониторинга с Ollama:
+    Monitoring --> Ollama
 
     %% Данные и конфигурация:
     Ollama --> Config
@@ -108,6 +108,7 @@ flowchart TD
    - Веб-интерфейс (HTTPS): <https://localhost>
    - Прямой доступ к WebUI: <http://localhost:8080>
    - Ollama API: <http://localhost:11434>
+   - Мониторинг ресурсов: : <http://localhost:5000>
 
 > **Примечание:** Некоторые браузеры могут автоматически переключать HTTP на HTTPS.
 
@@ -127,7 +128,7 @@ flowchart TD
 
 ### API Ollama
 
-Прямой доступ к Ollama API доступен по адресу:
+Прямое обращение к Ollama API доступно по адресу:
 
 ```bash
 # Список моделей
@@ -139,6 +140,23 @@ curl http://localhost:11434/api/generate -d '{
   "prompt": "Привет, как дела?",
   "stream": false
 }'
+
+```
+
+## 📊 Мониторинг ресурсов
+
+### Веб-интерфейс мониторинга
+
+Стек включает встроенную систему мониторинга используемых ресурсов в системе:
+
+- **URL**: <http://localhost:5000>
+
+Настраивается в `docker-compose.yaml`:
+
+```yaml
+environment:
+  - UPDATE_INTERVAL=${MONITOR_UPDATE_INTERVAL:-1}  # Интервал обновления в секундах
+  - RETENTION_TIME=${MONITOR_RETENTION:-60}        # Время хранения истории в секундах
 ```
 
 <details>
@@ -146,19 +164,24 @@ curl http://localhost:11434/api/generate -d '{
 
 ```text
 .
-├── nginx/                # Nginx прокси с SSL
-│   ├── Dockerfile        # Образ Nginx с генерацией сертификатов
-│   ├── generate-ssl.sh   # Скрипт генерации SSL сертификатов
-│   └── nginx.conf        # Конфигурация Nginx
-├── ollama/               # Ollama сервер
-│   ├── Dockerfile        # Образ Ollama с утилитами
-│   └── init-models.sh    # Скрипт загрузки моделей
-├── docker-compose.yaml   # Конфигурация Docker Compose
-├── models.txt            # Список моделей для загрузки
-├── monitor.sh            # Мониторинг сервисов
-├── restart.sh            # Перезапуск стека
-├── run.sh                # Основной скрипт запуска
-└── stop.sh               # Остановка стека
+├── monitoring/              # Сервис мониторинга ресурсов
+│   ├── templates/           # HTML шаблоны для веб-интерфейса
+│   │   └── index.html       # Главный HTML шаблон для веб-интерфейса мониторинга
+│   ├── Dockerfile           # Образ для сервиса мониторинга
+│   └── monitor.py           # Python скрипт сбора метрик и Flask сервер
+├── nginx/                   # Nginx прокси с SSL
+│   ├── Dockerfile           # Образ Nginx с генерацией сертификатов
+│   ├── generate-ssl.sh      # Скрипт генерации SSL сертификатов
+│   └── nginx.conf           # Конфигурация Nginx
+├── ollama/                  # Ollama сервер
+│   ├── Dockerfile           # Образ Ollama с утилитами
+│   └── init-models.sh       # Скрипт загрузки моделей
+├── docker-compose.yaml      # Конфигурация Docker Compose
+├── models.txt               # Список моделей для загрузки
+├── monitor.sh               # Мониторинг сервисов и доступности
+├── restart.sh               # Перезапуск стека
+├── run.sh                   # Основной скрипт запуска
+└── stop.sh                  # Остановка стека
 ```
 
 </details>
@@ -173,14 +196,17 @@ curl http://localhost:11434/api/generate -d '{
 - `OLLAMA_KEEP_ALIVE`: Время хранения моделей в памяти
 - `OLLAMA_HOST`: Адрес сервера Ollama
 - `HF_HUB_OFFLINE`: Режим работы с HuggingFace
+- `UPDATE_INTERVAL`: Интервал обновления мониторинга ресурсов в секундах
+- `RETENTION_TIME`: Время хранения истории мониторинга ресурсов в секундах
 
-### Портs
+### Порты
 
 - `80`: HTTP (веб-интерфейс без шифрования)
 - `443`: HTTPS (веб-интерфейс с шифрованием)
 - `8080`: Прямой доступ к Open WebUI
 - `11434`: Ollama API
-
+- `5000`: Веб-интерфейс мониторинга ресурсов
+- 
 ### Настройка моделей
 
 Для внесения новых моделей в систему добавьте их названия в список `models.txt` и
@@ -237,9 +263,10 @@ docker compose logs webui -f
 <details>
 <summary style="font-weight: 500; font-size: 24px">🙏 Благодарности</summary>
 
+- [👤Стасу](https://github.com/stansf) - За прототип проекта
 - [Ollama](https://ollama.ai) - За фреймворк для локальных LLM
 - [Open WebUI](https://github.com/open-webui) - За веб-интерфейс
-- [👤Стасу](https://github.com/stansf) - За прототип проекта
+- [Chart.js](https://www.chartjs.org) - За библиотеку графиков для мониторинга
 - [DeepSeek](https://chat.deepseek.com) - За помощь в развитии
 
 </details>
