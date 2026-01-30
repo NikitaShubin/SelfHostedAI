@@ -1,11 +1,11 @@
 #!/bin/bash
 # Скрипт для остановки всех сервисов AI-стека
 
-# Определяем текущую директорию скрипта
-DIR="$(cd "$(dirname "$0")" && pwd)"
+# Переход в папку со скриптом:
+cd "$(cd "$(dirname "$0")" && pwd)"
 
 echo "Остановка AI стека..."
 # Останавливаем контейнеры через Docker Compose
-docker compose -f "$DIR/docker-compose.yaml" down
+docker compose -f "./docker-compose.yaml" down
 
 echo "Контейнеры остановлены."

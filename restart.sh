@@ -1,7 +1,8 @@
 #!/bin/bash
 # Скрипт для перезапуска AI-стека (остановка + запуск)
 
-DIR="$(cd "$(dirname "$0")" && pwd)"
+# Переход в папку со скриптом:
+cd "$(cd "$(dirname "$0")" && pwd)"
 
 echo "Перезапуск AI стека..."
 echo ""
@@ -15,7 +16,6 @@ echo "📥 Предзагрузка Docker образов..."
 
 # Составление списка образов:
 IMAGES=$(
-    cd "$DIR" || exit 1
     {
         grep "^FROM" */Dockerfile | awk '{print $2}';
         grep "image:" docker-compose.yaml | awk '{print $2}';
@@ -35,6 +35,6 @@ echo ""
 
 
 # Останавливаем сервисы:
-"$DIR/stop.sh"
+"./stop.sh"
 # Запускаем сервисы:
-"$DIR/run.sh"
+"./run.sh"
