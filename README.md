@@ -35,7 +35,7 @@ flowchart TD
     Monitoring["📊 Дашборд<br/>Ресурсы и управление"]
 
     Models["📦 Загруженные модели"]
-    Config["⚙️ Конфигурация<br/>__models.txt__"]
+    Config["⚙️ Конфигурация<br/>models.txt"]
 
     %% Пользовательские связи:
     User --> Browser
