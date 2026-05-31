@@ -1,70 +1,84 @@
 #!/bin/bash
 # Скрипт для мониторинга состояния сервисов AI-стека
-# Показывает статус контейнеров, доступность Ollama API и прогресс загрузки моделей
 
-# Переход в папку со скриптом:
 cd "$(cd "$(dirname "$0")" && pwd)"
 
-# Проверяем, поддерживает ли терминал цвета
 if [ -t 1 ]; then
-    # Минимальный набор контрастных цветов
-    GREEN='\033[1;32m'  # Ярко-зелёный для успеха
-    RED='\033[1;31m'    # Ярко-красный для ошибок
-    YELLOW='\033[1;33m' # Ярко-жёлтый для предупреждений
-    BLUE='\033[1;36m'   # Ярко-голубой для заголовков
-    PURPLE='\033[1;35m' # Ярко-фиолетовый для дашборда
-    CYAN='\033[1;34m'   # Ярко-голубой для WebUI
-    NC='\033[0m'        # No Color
+    GREEN='\033[1;32m'; RED='\033[1;31m'; YELLOW='\033[1;33m'
+    BLUE='\033[1;36m'; PURPLE='\033[1;35m'; CYAN='\033[1;34m'
+    BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
 else
-    # Без цветов (например, при перенаправлении вывода в файл)
-    GREEN=''
-    RED=''
-    YELLOW=''
-    BLUE=''
-    PURPLE=''
-    CYAN=''
-    NC=''
+    GREEN=''; RED=''; YELLOW=''; BLUE=''; PURPLE=''; CYAN=''; BOLD=''; DIM=''; NC=''
 fi
 
-echo -e "${BLUE}=== Статус сервисов ===${NC}"
+echo -e "${BLUE}════════════════════════════════════════${NC}"
+echo -e "${BLUE}  Состояние AI стека${NC}"
+echo -e "${BLUE}════════════════════════════════════════${NC}"
 echo ""
 
-# 1. Проверка контейнеров через Docker Compose
-echo -e "${BLUE}📦 Контейнеры:${NC}"
-docker compose ps
-
+echo -e "${BOLD}📦 Контейнеры:${NC}"
+docker compose ps 2>&1
 echo ""
-echo -e "${BLUE}🌐 Доступность:${NC}"
 
-# 2. Проверка Monitoring API (таймаут 5 секунд)
-if timeout 5 curl -s http://localhost:5000/api/system-info > /dev/null; then
-    echo -e "${PURPLE}✅ Панель управления: http://localhost:5000${NC}"
+echo -e "${BOLD}🌐 Сервисы:${NC}"
+
+if timeout 5 curl -s http://localhost:5000/api/system-info > /dev/null 2>&1; then
+    echo -e "  ${PURPLE}✅${NC} Панель управления  ${BOLD}http://localhost:5000${NC}"
 else
-    echo -e "${RED}❌ Панель управления не отвечает${NC}"
+    echo -e "  ${RED}❌${NC} Панель управления  ${DIM}недоступна${NC}"
 fi
 
-# 3. Проверка WebUI (таймаут 5 секунд)
-if timeout 5 curl -s http://localhost:8080 > /dev/null; then
-    echo -e "${CYAN}✅ WebUI: http://localhost:8080${NC}"
+if timeout 5 curl -s http://localhost:8080 > /dev/null 2>&1; then
+    echo -e "  ${CYAN}✅${NC} WebUI              ${BOLD}http://localhost:8080${NC}"
 else
-    echo -e "${RED}❌ WebUI не отвечает${NC}"
+    echo -e "  ${RED}❌${NC} WebUI              ${DIM}недоступен${NC}"
 fi
 
-# 4. Проверка Ollama API (таймаут 5 секунд)
-if timeout 5 curl -s http://localhost:11434/api/tags > /dev/null; then
-    echo -e "${GREEN}✅ Ollama API: http://localhost:11434${NC}"
-    # Получаем список моделей и извлекаем их названия
-    echo "   Модели:"
-    curl -s http://localhost:11434/api/tags | grep -o '"name":"[^"]*"' | sed 's/"name":"//;s/"//;s/^/     - /'
+if timeout 5 curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
+    echo -e "  ${GREEN}✅${NC} Ollama API         ${BOLD}http://localhost:11434${NC}"
+    MODELS=$(curl -s http://localhost:11434/api/tags | grep -o '"name":"[^"]*"' | sed 's/"name":"//;s/"//g')
+    MODEL_COUNT=$(echo "$MODELS" | grep -c . 2>/dev/null)
+    if [ "$MODEL_COUNT" -gt 0 ]; then
+        echo -e "     ${DIM}Модели (${MODEL_COUNT}):${NC}"
+        echo "$MODELS" | sed 's/^/       • /'
+    fi
 else
-    echo -e "${RED}❌ Ollama не отвечает${NC}"
+    echo -e "  ${RED}❌${NC} Ollama API         ${DIM}недоступен${NC}"
 fi
 
-# 5. Проверка скачиваемых прямо сейчас моделей
-# Ищем в логах Ollama информацию о загрузке моделей
-CURRENT_DOWNLOAD=$(docker compose logs ollama --tail=15 2>/dev/null | grep -E "(pulling|downloading).*(layer|digest|%)" | tail -1)
-if [ -n "$CURRENT_DOWNLOAD" ]; then
+# Определяем активную загрузку или ошибки загрузки
+# Ищем в логах последних 3 минут
+LOGS=$(docker logs ollama --since=3m 2>/dev/null)
+
+# Убираем ANSI-коды для grep
+CLEAN=$(echo "$LOGS" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g')
+
+# Проверяем наличие активного pull
+PULLING=$(echo "$CLEAN" | grep -E "pulling" | grep -v "pulling manifest" | tail -1)
+if [ -z "$PULLING" ]; then
+    PULLING=$(echo "$CLEAN" | grep "POST.*/api/pull" | tail -1)
+fi
+
+# Проверяем ошибки pull
+ERROR=$(echo "$CLEAN" | grep -iE "error|requires.*macOS|manifest.*not found" | tail -3)
+
+# Проверяем активные процессы
+ACTIVE_PULL=$(docker exec ollama ps aux 2>/dev/null | grep "ollama pull" | grep -v grep)
+
+if [ -n "$ACTIVE_PULL" ]; then
     echo ""
-    echo -e "${YELLOW}🔄 Сейчас загружается:${NC}"
-    echo "   $CURRENT_DOWNLOAD" | sed 's/^/   /'
+    echo -e "${YELLOW}🔄 Загружается модель...${NC}"
+elif [ -n "$PULLING" ]; then
+    # Извлекаем имя модели из POST /api/pull
+    MODEL=$(echo "$PULLING" | grep -oP '"/api/pull".*"\\K[^"]+' || echo "")
+    if [ -n "$MODEL" ]; then
+        echo ""
+        echo -e "${YELLOW}🔄 Загружается: ${BOLD}${MODEL}${NC}"
+    fi
+fi
+
+if [ -n "$ERROR" ]; then
+    echo ""
+    echo -e "${RED}❌ Ошибки загрузки:${NC}"
+    echo "$ERROR" | sed 's/^/   /'
 fi
