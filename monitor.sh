@@ -1,7 +1,7 @@
 #!/bin/bash
 # Скрипт для мониторинга состояния сервисов AI-стека
 
-cd "$(cd "$(dirname "$0")" && pwd)"
+cd "$(cd "$(dirname "$0")" && pwd)" || exit
 
 if [ -t 1 ]; then
     GREEN='\033[1;32m'; RED='\033[1;31m'; YELLOW='\033[1;33m'
@@ -40,7 +40,7 @@ if timeout 5 curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
     MODEL_COUNT=$(echo "$MODELS" | grep -c . 2>/dev/null)
     if [ "$MODEL_COUNT" -gt 0 ]; then
         echo -e "     ${DIM}Модели (${MODEL_COUNT}):${NC}"
-        echo "$MODELS" | sed 's/^/       • /'
+        while IFS= read -r line; do echo "       • $line"; done <<< "$MODELS"
     fi
 else
     echo -e "  ${RED}❌${NC} Ollama API         ${DIM}недоступен${NC}"
@@ -61,5 +61,5 @@ ERROR=$(echo "$LOGS" | grep -iE "error.*(pull|manifest|not found|requires)" | gr
 if [ -n "$ERROR" ]; then
     echo ""
     echo -e "     ${RED}❌${NC} Ошибка загрузки:"
-    echo "$ERROR" | sed 's/^/       /'
+    while IFS= read -r line; do echo "       $line"; done <<< "$ERROR"
 fi

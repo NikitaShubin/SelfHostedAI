@@ -1,7 +1,7 @@
 #!/bin/bash
 # Основной скрипт запуска AI-стека
 
-cd "$(cd "$(dirname "$0")" && pwd)"
+cd "$(cd "$(dirname "$0")" && pwd)" || exit
 
 if [ -t 1 ]; then
     GREEN='\033[1;32m'; RED='\033[1;31m'; YELLOW='\033[1;33m'

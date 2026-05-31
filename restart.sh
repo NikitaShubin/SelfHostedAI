@@ -1,13 +1,13 @@
 #!/bin/bash
 # Скрипт для перезапуска AI-стека (остановка + запуск)
 
-cd "$(cd "$(dirname "$0")" && pwd)"
+cd "$(cd "$(dirname "$0")" && pwd)" || exit
 
 if [ -t 1 ]; then
-    GREEN='\033[1;32m'; RED='\033[1;31m'; YELLOW='\033[1;33m'
-    BLUE='\033[1;36m'; BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
+    GREEN='\033[1;32m'; YELLOW='\033[1;33m'
+    BLUE='\033[1;36m'; BOLD='\033[1m'; NC='\033[0m'
 else
-    GREEN=''; RED=''; YELLOW=''; BLUE=''; BOLD=''; DIM=''; NC=''
+    GREEN=''; YELLOW=''; BLUE=''; BOLD=''; NC=''
 fi
 
 echo ""
@@ -20,7 +20,7 @@ echo ""
 echo -e "${BOLD}📥 Предзагрузка Docker образов...${NC}"
 IMAGES=$(
     {
-        grep "^FROM" */Dockerfile | awk '{print $2}';
+        grep "^FROM" ./*/Dockerfile | awk '{print $2}';
         grep "image:" docker-compose.yaml | awk '{print $2}';
     } | sort -u
 )

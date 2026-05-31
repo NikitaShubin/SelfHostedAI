@@ -1,13 +1,13 @@
 #!/bin/bash
 # Скрипт для остановки всех сервисов AI-стека
 
-cd "$(cd "$(dirname "$0")" && pwd)"
+cd "$(cd "$(dirname "$0")" && pwd)" || exit
 
 if [ -t 1 ]; then
-    GREEN='\033[1;32m'; YELLOW='\033[1;33m'
+    GREEN='\033[1;32m'
     BLUE='\033[1;36m'; BOLD='\033[1m'; NC='\033[0m'
 else
-    GREEN=''; YELLOW=''; BLUE=''; BOLD=''; NC=''
+    GREEN=''; BLUE=''; BOLD=''; NC=''
 fi
 
 echo ""
