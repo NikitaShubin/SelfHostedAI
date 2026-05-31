@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Скрипт мониторинга ресурсов системы и контейнера Ollama
-# ВЕРСИЯ С ТОЧНЫМ GPU UTILIZATION (0% если есть другие процессы)
+# ВЕРСИЯ С ИСПРАВЛЕННЫМИ RAM/CPU/GPU МЕТРИКАМИ
 
 import os
 import time
@@ -119,26 +119,26 @@ def get_system_metrics():
         logger.error(f"❌ Ошибка сбора системных метрик: {e}", exc_info=True)
         return {'cpu': 0, 'ram_percent': 0, 'ram_gb': 0, 'gpu_util': 0, 'gpu_mem': 0}
 
-def get_processes_on_gpu(handle):
-    """Получить все процессы на GPU с использованием памяти"""
+def get_compute_processes_on_gpu(handle):
+    """Получить только CUDA/compute процессы на GPU с использованием памяти"""
     processes = {}
     try:
-        # Compute процессы (CUDA)
         compute_procs = pynvml.nvmlDeviceGetComputeRunningProcesses(handle)
         for proc in compute_procs:
             processes[proc.pid] = getattr(proc, 'usedGpuMemory', 0)
     except Exception as e:
         logger.debug(f"Ошибка получения compute процессов: {e}")
-    
+    return processes
+
+def get_graphics_processes_on_gpu(handle):
+    """Получить только graphics процессы на GPU с использованием памяти"""
+    processes = {}
     try:
-        # Graphics процессы
         graphics_procs = pynvml.nvmlDeviceGetGraphicsRunningProcesses(handle)
         for proc in graphics_procs:
-            prev_mem = processes.get(proc.pid, 0)
-            processes[proc.pid] = prev_mem + getattr(proc, 'usedGpuMemory', 0)
+            processes[proc.pid] = getattr(proc, 'usedGpuMemory', 0)
     except Exception as e:
         logger.debug(f"Ошибка получения graphics процессов: {e}")
-    
     return processes
 
 def get_ollama_container_pids():
@@ -159,7 +159,6 @@ def get_ollama_container_pids():
             logger.debug("Неправильный формат ответа Docker API")
             return set()
         
-        # Находим индекс колонки PID
         titles = data['Titles']
         pid_index = None
         for idx, title in enumerate(titles):
@@ -171,7 +170,6 @@ def get_ollama_container_pids():
             logger.warning("PID column not found in docker top output")
             return set()
         
-        # Собираем все PID (это хостовые PID!)
         pids = set()
         for process in data['Processes']:
             if pid_index < len(process):
@@ -207,7 +205,7 @@ def get_ollama_metrics():
         
         stats = json.loads(result.stdout)
         
-        # CPU расчет через delta
+        # CPU расчет через delta (0-100%, где 100% = все ядра)
         cpu_percent = 0
         if last_cpu_stats is None:
             last_cpu_stats = stats
@@ -218,27 +216,26 @@ def get_ollama_metrics():
                 system_delta = stats['cpu_stats']['system_cpu_usage'] - \
                               last_cpu_stats['precpu_stats']['system_cpu_usage']
                 if system_delta > 0:
-                    num_cpus = len(stats['cpu_stats']['cpu_usage']['percpu_usage'])
-                    cpu_percent = (cpu_delta / system_delta) * num_cpus * 100
+                    cpu_percent = (cpu_delta / system_delta) * 100
             except Exception as e:
                 logger.debug(f"Ошибка расчета CPU: {e}")
                 pass
             
             last_cpu_stats = stats
         
-        # RAM - используем абсолютное значение и процент от общей RAM системы
+        # RAM — вычитаем page cache (Docker usage включает кеш ядра)
         ram_gb = 0
         ram_percent = 0
         if 'memory_stats' in stats:
             memory_stats = stats['memory_stats']
-            usage = memory_stats.get('usage', 0)
+            usage_raw = memory_stats.get('usage', 0)
+            cache = memory_stats.get('stats', {}).get('cache', 0)
+            usage = max(0, usage_raw - cache)
             ram_gb = usage / (1024**3)
-            # Процент от общей RAM системы (не от лимита контейнера!)
             ram_percent = (ram_gb / total_system_ram_gb * 100) if total_system_ram_gb > 0 else 0
-            # Ограничиваем до 100%
             ram_percent = min(ram_percent, 100.0)
         
-        # GPU метрики - считаем ТОЛЬКО для процессов Ollama
+        # GPU метрики — считаем ТОЛЬКО для процессов Ollama
         gpu_util = 0
         gpu_mem_percent = 0
         
@@ -264,23 +261,21 @@ def get_ollama_metrics():
                 except:
                     pass
             
-            # Собираем GPU метрики только для процессов Ollama
+            # Собираем GPU метрики только для compute-процессов Ollama
             total_ollama_gpu_mem_bytes = 0
             ollama_gpu_ids = set()
             
             for handle in gpu_handles:
                 try:
-                    # Получаем все процессы на этом GPU
-                    gpu_processes = get_processes_on_gpu(handle)
+                    # Смотрим только compute (CUDA) процессы — graphics (Xorg и т.п.) не учитываем
+                    gpu_processes = get_compute_processes_on_gpu(handle)
                     
-                    # Проверяем, есть ли процессы ollama на этом GPU
                     has_ollama_on_this_gpu = False
                     for pid in ollama_pids:
                         if pid in gpu_processes:
                             has_ollama_on_this_gpu = True
                             total_ollama_gpu_mem_bytes += gpu_processes[pid]
                     
-                    # Если есть хотя бы один процесс ollama на этом GPU, запоминаем ID
                     if has_ollama_on_this_gpu:
                         gpu_id = gpu_handles.index(handle)
                         ollama_gpu_ids.add(gpu_id)
@@ -289,48 +284,57 @@ def get_ollama_metrics():
                     logger.debug(f"Ошибка получения GPU процессов: {e}")
                     pass
             
-            # Рассчитываем процент использования памяти (от всех GPU)
+            # Процент GPU памяти, занятой Ollama
             gpu_mem_percent = (total_ollama_gpu_mem_bytes / total_mem_total * 100) if total_mem_total > 0 else 0
             
-            # === ВОТ ТУТ ГЛАВНАЯ ПРАВКА ===
             # GPU UTILIZATION: NVML НЕ ДАЕТ per-process utilization
-            # РЕШЕНИЕ: Показываем 0%, если есть другие процессы на GPU, иначе показываем общую utilization
+            # РЕШЕНИЕ: оцениваем долю Ollama по пропорции используемой памяти,
+            # если на GPU есть другие compute-процессы.
+            # Graphics-процессы (Xorg) игнорируем — они не влияют на compute.
             
             if ollama_gpu_ids:
-                # Проверяем, есть ли другие процессы на GPU, где есть Ollama
-                other_processes_found = False
+                other_compute_found = False
+                total_mem_shared_gpus = 0
+                ollama_mem_shared_gpus = 0
+                
                 for gpu_id in ollama_gpu_ids:
                     try:
                         handle = gpu_handles[gpu_id]
-                        gpu_processes = get_processes_on_gpu(handle)
+                        compute_procs = get_compute_processes_on_gpu(handle)
                         
-                        for pid in gpu_processes:
+                        for pid, mem in compute_procs.items():
                             if pid not in ollama_pids:
-                                other_processes_found = True
-                                logger.debug(f"Найден другой процесс {pid} на GPU {gpu_id}")
-                                break
+                                other_compute_found = True
+                                logger.debug(f"Найден другой compute-процесс {pid} на GPU {gpu_id}")
                         
-                        if other_processes_found:
-                            break
+                        # Суммируем всю память compute-процессов на GPU, где есть Ollama
+                        gpu_mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                        total_mem_shared_gpus += gpu_mem_info.total
+                        for pid, mem in compute_procs.items():
+                            if pid in ollama_pids:
+                                ollama_mem_shared_gpus += mem
                     except:
                         pass
                 
-                if other_processes_found:
-                    # Если есть другие процессы, ставим 0% чтобы не вводить в заблуждение
-                    gpu_util = 0
-                    logger.warning(f"⚠️ На GPU {ollama_gpu_ids} есть другие процессы, Ollama GPU utilization = 0%")
+                # Реальная system GPU utilization на GPU, где есть Ollama
+                total_util = 0
+                for gpu_id in ollama_gpu_ids:
+                    try:
+                        handle = gpu_handles[gpu_id]
+                        util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                        total_util += util.gpu
+                    except:
+                        pass
+                system_util = total_util / gpu_count if gpu_count > 0 else 0
+                
+                if other_compute_found and total_ollama_gpu_mem_bytes > 0:
+                    # Есть другие compute-процессы — оцениваем долю Ollama по памяти
+                    mem_ratio = ollama_mem_shared_gpus / max(total_mem_shared_gpus, 1)
+                    gpu_util = system_util * mem_ratio
+                    logger.debug(f"⚖️ Другие compute-процессы, оценка по памяти: {gpu_util:.1f}% (share={mem_ratio:.2f})")
                 else:
-                    # ТОЛЬКО если на GPU есть только Ollama процессы, показываем реальную utilization
-                    total_util = 0
-                    for gpu_id in ollama_gpu_ids:
-                        try:
-                            handle = gpu_handles[gpu_id]
-                            util = pynvml.nvmlDeviceGetUtilizationRates(handle)
-                            total_util += util.gpu
-                        except:
-                            pass
-                    
-                    gpu_util = total_util / len(ollama_gpu_ids) if ollama_gpu_ids else 0
+                    # Только Ollama на GPU — показываем реальную utilization
+                    gpu_util = system_util
                     logger.debug(f"✅ На GPU {ollama_gpu_ids} только Ollama, utilization = {gpu_util:.1f}%")
             else:
                 gpu_util = 0
@@ -348,7 +352,7 @@ def get_ollama_metrics():
 
 def collect_metrics():
     """Фоновый сбор метрик в бесконечном цикле"""
-    logger.info("=== Запуск фонового сбора метрик ===")
+    logger.info("=== Запуск фонового сбора метрик и управления ===")
     init_gpu()
     
     global last_cpu_stats
@@ -399,10 +403,8 @@ def get_system_info():
     """Возвращает информацию о системе"""
     global total_system_ram_gb, gpu_count, gpu_handles, NVIDIA_AVAILABLE
     
-    # Получаем количество CPU ядер
     cpu_cores = psutil.cpu_count()
     
-    # Получаем общий объем GPU памяти
     total_gpu_mem_gb = 0
     if NVIDIA_AVAILABLE and gpu_handles:
         for handle in gpu_handles:
@@ -420,7 +422,96 @@ def get_system_info():
         'total_gpu_mem_gb': round(total_gpu_mem_gb, 2)
     })
 
-logger.info("=== ИНИЦИАЛИЗАЦИЯ МОНИТОРИНГА ===")
+
+@app.route('/api/ollama/unload/<path:model>', methods=['POST'])
+def unload_ollama_model(model):
+    """Выгрузить модель из памяти Ollama через keep_alive=0"""
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            'http://ollama:11434/api/generate',
+            data=json.dumps({'model': model, 'keep_alive': 0}).encode(),
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode())
+            logger.info(f"✅ Модель {model} выгружена: {result}")
+            return jsonify({'success': True, 'model': model, 'result': result})
+    except Exception as e:
+        logger.error(f"❌ Ошибка выгрузки модели {model}: {e}")
+        return jsonify({'success': False, 'model': model, 'error': str(e)}), 500
+
+@app.route('/api/ollama/unload-all', methods=['POST'])
+def unload_all_ollama_models():
+    """Выгрузить все модели из памяти Ollama"""
+    try:
+        import urllib.request
+        req = urllib.request.Request('http://ollama:11434/api/ps')
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode())
+        
+        models = data.get('models', [])
+        unloaded = []
+        errors = []
+        
+        for m in models:
+            try:
+                model_name = m.get('name', '')
+                if not model_name:
+                    continue
+                ureq = urllib.request.Request(
+                    'http://ollama:11434/api/generate',
+                    data=json.dumps({'model': model_name, 'keep_alive': 0}).encode(),
+                    headers={'Content-Type': 'application/json'},
+                    method='POST'
+                )
+                with urllib.request.urlopen(ureq, timeout=30) as uresp:
+                    json.loads(uresp.read().decode())
+                unloaded.append(model_name)
+                logger.info(f"✅ Модель {model_name} выгружена")
+            except Exception as e:
+                errors.append({'model': model_name, 'error': str(e)})
+                logger.error(f"❌ Ошибка выгрузки {model_name}: {e}")
+        
+        return jsonify({
+            'success': True,
+            'unloaded': unloaded,
+            'errors': errors,
+            'total': len(models)
+        })
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения списка моделей: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ollama/models')
+def get_ollama_models():
+    """Получить список загруженных моделей Ollama"""
+    try:
+        import urllib.request
+        req = urllib.request.Request('http://ollama:11434/api/ps')
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode())
+        
+        models = []
+        for m in data.get('models', []):
+            models.append({
+                'name': m.get('name', ''),
+                'size': m.get('size', 0),
+                'size_formatted': m.get('size_formatted', ''),
+                'processor': m.get('details', {}).get('format', ''),
+                'family': m.get('details', {}).get('family', ''),
+                'parameter_size': m.get('details', {}).get('parameter_size', ''),
+                'quantization': m.get('details', {}).get('quantization_level', '')
+            })
+        
+        return jsonify({'success': True, 'models': models, 'count': len(models)})
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения моделей: {e}")
+        return jsonify({'success': False, 'models': [], 'count': 0, 'error': str(e)})
+
+
+logger.info("=== ИНИЦИАЛИЗАЦИЯ ПАНЕЛИ УПРАВЛЕНИЯ ===")
 logger.info(f"Общая RAM системы: {total_system_ram_gb:.1f} GB")
 collector_thread = threading.Thread(target=collect_metrics, daemon=True)
 collector_thread.start()

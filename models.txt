@@ -13,5 +13,12 @@ qwen2.5-coder:7b-instruct      # Специализированная модел
 # llava:7b                       # Мультимодальная модель (текст + изображения)
 
 # Большие модели (требуют больше ресурсов):
-# llama3.1:70b-instruct-q4_K_M   # Очень мощная, но тяжёлая модель (70B параметров)
 gpt-oss:20b                    # Аналог GPT-2, открытая модель от OpenAI
+qwen3-coder:30b-a3b-fp16
+glm-4.7-flash:q8_0
+
+
+nemotron-cascade-2:latest
+
+qwen3.6:35b-a3b-q8_0
+qwen3.6:27b-coding-mxfp8

@@ -68,19 +68,19 @@ services:
     restart: unless-stopped
 
   # Мониторинг ресурсов системы
-  monitoring:
-    build: ./monitoring
-    container_name: ai-monitor
+  dashboard:
+    build: ./dashboard
+    container_name: ai-dashboard
     depends_on:
       - ollama
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro # Docker socket для получения статистики
       - .:/workspace:ro # Для доступа к docker-compose.yaml
     environment:
-      - UPDATE_INTERVAL=${MONITOR_UPDATE_INTERVAL:-1} # Интервал обновления в секундах
-      - RETENTION_TIME=${MONITOR_RETENTION:-60} # Время хранения истории в секундах
+      - UPDATE_INTERVAL=${DASHBOARD_UPDATE_INTERVAL:-1} # Интервал обновления в секундах
+      - RETENTION_TIME=${DASHBOARD_RETENTION:-60} # Время хранения истории в секундах
     ports:
-      - '0.0.0.0:5000:5000' # Веб-интерфейс мониторинга
+      - '0.0.0.0:5000:5000' # Панель управления ресурсами
     networks:
       - ai-network
     restart: unless-stopped
