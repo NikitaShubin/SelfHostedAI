@@ -46,39 +46,20 @@ else
     echo -e "  ${RED}❌${NC} Ollama API         ${DIM}недоступен${NC}"
 fi
 
-# Определяем активную загрузку или ошибки загрузки
-# Ищем в логах последних 3 минут
-LOGS=$(docker logs ollama --since=3m 2>/dev/null)
-
-# Убираем ANSI-коды для grep
-CLEAN=$(echo "$LOGS" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g')
-
-# Проверяем наличие активного pull
-PULLING=$(echo "$CLEAN" | grep -E "pulling" | grep -v "pulling manifest" | tail -1)
-if [ -z "$PULLING" ]; then
-    PULLING=$(echo "$CLEAN" | grep "POST.*/api/pull" | tail -1)
-fi
-
-# Проверяем ошибки pull
-ERROR=$(echo "$CLEAN" | grep -iE "error|requires.*macOS|manifest.*not found" | tail -3)
-
-# Проверяем активные процессы
-ACTIVE_PULL=$(docker exec ollama ps aux 2>/dev/null | grep "ollama pull" | grep -v grep)
-
-if [ -n "$ACTIVE_PULL" ]; then
+# Активная загрузка: ищем реальные ollama pull процессы в контейнере
+PULL_PROC=$(docker exec ollama ps aux 2>/dev/null | grep -E "[o]llama pull" | head -3)
+if [ -n "$PULL_PROC" ]; then
+    # Извлекаем имя модели из команды: ollama pull <model>
+    MODEL=$(echo "$PULL_PROC" | grep -oP 'ollama pull \K\S+' | head -1)
     echo ""
-    echo -e "${YELLOW}🔄 Загружается модель...${NC}"
-elif [ -n "$PULLING" ]; then
-    # Извлекаем имя модели из POST /api/pull
-    MODEL=$(echo "$PULLING" | grep -oP '"/api/pull".*"\\K[^"]+' || echo "")
-    if [ -n "$MODEL" ]; then
-        echo ""
-        echo -e "${YELLOW}🔄 Загружается: ${BOLD}${MODEL}${NC}"
-    fi
+    echo -e "     ${YELLOW}🔄${NC} Загружается: ${BOLD}${MODEL:-модель}${NC}"
 fi
 
+# Ошибки загрузки (только свежие, из последнего запуска инициализации)
+LOGS=$(docker logs ollama --since=1m 2>/dev/null | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g')
+ERROR=$(echo "$LOGS" | grep -iE "error.*(pull|manifest|not found|requires)" | grep -v "context canceled" | tail -3)
 if [ -n "$ERROR" ]; then
     echo ""
-    echo -e "${RED}❌ Ошибки загрузки:${NC}"
-    echo "$ERROR" | sed 's/^/   /'
+    echo -e "     ${RED}❌${NC} Ошибка загрузки:"
+    echo "$ERROR" | sed 's/^/       /'
 fi
