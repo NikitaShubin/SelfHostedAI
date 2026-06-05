@@ -153,6 +153,44 @@ def get_graphics_processes_on_gpu(handle):
     return processes
 
 
+def get_per_process_gpu_utilization():
+    """Получить per-process SM utilization для всех GPU.
+    
+    Возвращает {pid: {gpu_id: sm_util_percent}}
+    Всегда получает последние доступные семплы (lastTimeStamp=0).
+    """
+    proc_util: dict[int, dict[int, int]] = {}
+    for gpu_id, handle in enumerate(gpu_handles):
+        try:
+            samples = pynvml.nvmlDeviceGetProcessUtilization(handle, 0)
+            for sample in samples:
+                pid = sample.pid
+                if pid not in proc_util:
+                    proc_util[pid] = {}
+                proc_util[pid][gpu_id] = sample.smUtil
+        except Exception as e:
+            logger.debug(f"Ошибка per-process utilization на GPU {gpu_id}: {e}")
+    return proc_util
+
+
+def compute_ollama_gpu_from_per_process(per_process_util, ollama_pids):
+    """Вычислить Ollama GPU utilization из per-process данных NVML.
+    
+    Использует те же самые данные, что и system — гарантирует ollama <= system.
+    """
+    if gpu_count == 0 or not ollama_pids:
+        return 0
+    total_ollama_sm = 0
+    for gpu_id in range(gpu_count):
+        ollama_sm_sum = 0
+        for pid in ollama_pids:
+            proc = per_process_util.get(pid, {})
+            if gpu_id in proc:
+                ollama_sm_sum += proc[gpu_id]
+        total_ollama_sm += min(ollama_sm_sum, 100)
+    return total_ollama_sm / gpu_count
+
+
 def get_ollama_container_pids():
     """Получить хостовые PID всех процессов контейнера Ollama"""
     try:
@@ -216,6 +254,58 @@ def get_ollama_metrics():
     global last_cpu_stats
 
     try:
+        # GPU метрики — замеряем ПЕРВЫМИ, до любых блокирующих вызовов
+        gpu_util = 0
+        gpu_mem_percent = 0
+
+        if NVIDIA_AVAILABLE and gpu_handles:
+            ollama_pids = get_ollama_container_pids()
+
+            if ollama_pids:
+                total_mem_total = 0
+                for handle in gpu_handles:
+                    try:
+                        mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                        total_mem_total += mem_info.total
+                    except Exception:
+                        pass
+
+                total_ollama_gpu_mem_bytes = 0
+                for handle in gpu_handles:
+                    try:
+                        gpu_processes = get_compute_processes_on_gpu(handle)
+                        for pid in ollama_pids:
+                            if pid in gpu_processes:
+                                total_ollama_gpu_mem_bytes += gpu_processes[pid]
+                    except Exception as e:
+                        logger.debug(f"Ошибка получения GPU процессов: {e}")
+                        pass
+
+                gpu_mem_percent = (
+                    (total_ollama_gpu_mem_bytes / total_mem_total * 100)
+                    if total_mem_total > 0
+                    else 0
+                )
+
+                if gpu_count > 0:
+                    per_process_util = get_per_process_gpu_utilization()
+                    total_ollama_sm = 0
+                    for gpu_id in range(gpu_count):
+                        ollama_sm_sum = 0
+                        for pid in ollama_pids:
+                            proc = per_process_util.get(pid, {})
+                            if gpu_id in proc:
+                                ollama_sm_sum += proc[gpu_id]
+                        total_ollama_sm += min(ollama_sm_sum, 100)
+                    gpu_util = total_ollama_sm / gpu_count
+                    if gpu_util > 0:
+                        logger.debug(
+                            f"✅ Ollama GPU util: {gpu_util:.1f}% "
+                            f"(SM capped avg across {gpu_count} GPUs)"
+                        )
+                else:
+                    gpu_util = 0
+
         # Получаем основные stats через Docker API
         result = subprocess.run(
             [
@@ -236,8 +326,8 @@ def get_ollama_metrics():
                 "cpu": 0,
                 "ram_percent": 0,
                 "ram_gb": 0,
-                "gpu_util": 0,
-                "gpu_mem": 0,
+                "gpu_util": round(gpu_util, 2),
+                "gpu_mem": round(gpu_mem_percent, 2),
             }
 
         stats = json.loads(result.stdout)
@@ -278,120 +368,6 @@ def get_ollama_metrics():
             )
             ram_percent = min(ram_percent, 100.0)
 
-        # GPU метрики — считаем ТОЛЬКО для процессов Ollama
-        gpu_util = 0
-        gpu_mem_percent = 0
-
-        if NVIDIA_AVAILABLE and gpu_handles:
-            ollama_pids = get_ollama_container_pids()
-
-            if not ollama_pids:
-                logger.debug("Нет процессов Ollama для мониторинга GPU")
-                return {
-                    "cpu": round(cpu_percent, 2),
-                    "ram_percent": round(ram_percent, 2),
-                    "ram_gb": round(ram_gb, 2),
-                    "gpu_util": 0,
-                    "gpu_mem": 0,
-                }
-
-            # Общая память всех GPU для расчета процентов
-            total_mem_total = 0
-            for handle in gpu_handles:
-                try:
-                    mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-                    total_mem_total += mem_info.total
-                except Exception:
-                    pass
-
-            # Собираем GPU метрики только для compute-процессов Ollama
-            total_ollama_gpu_mem_bytes = 0
-            ollama_gpu_ids = set()
-
-            for handle in gpu_handles:
-                try:
-                    # Смотрим только compute (CUDA) процессы — graphics (Xorg и т.п.) не учитываем
-                    gpu_processes = get_compute_processes_on_gpu(handle)
-
-                    has_ollama_on_this_gpu = False
-                    for pid in ollama_pids:
-                        if pid in gpu_processes:
-                            has_ollama_on_this_gpu = True
-                            total_ollama_gpu_mem_bytes += gpu_processes[pid]
-
-                    if has_ollama_on_this_gpu:
-                        gpu_id = gpu_handles.index(handle)
-                        ollama_gpu_ids.add(gpu_id)
-
-                except Exception as e:
-                    logger.debug(f"Ошибка получения GPU процессов: {e}")
-                    pass
-
-            # Процент GPU памяти, занятой Ollama
-            gpu_mem_percent = (
-                (total_ollama_gpu_mem_bytes / total_mem_total * 100)
-                if total_mem_total > 0
-                else 0
-            )
-
-            # GPU UTILIZATION: NVML НЕ ДАЕТ per-process utilization
-            # РЕШЕНИЕ: оцениваем долю Ollama по пропорции используемой памяти,
-            # если на GPU есть другие compute-процессы.
-            # Graphics-процессы (Xorg) игнорируем — они не влияют на compute.
-
-            if ollama_gpu_ids:
-                other_compute_found = False
-                total_mem_shared_gpus = 0
-                ollama_mem_shared_gpus = 0
-
-                for gpu_id in ollama_gpu_ids:
-                    try:
-                        handle = gpu_handles[gpu_id]
-                        compute_procs = get_compute_processes_on_gpu(handle)
-
-                        for pid, mem in compute_procs.items():
-                            if pid not in ollama_pids:
-                                other_compute_found = True
-                                logger.debug(
-                                    f"Найден другой compute-процесс {pid} на GPU {gpu_id}"
-                                )
-
-                        # Суммируем всю память compute-процессов на GPU, где есть Ollama
-                        gpu_mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-                        total_mem_shared_gpus += gpu_mem_info.total
-                        for pid, mem in compute_procs.items():
-                            if pid in ollama_pids:
-                                ollama_mem_shared_gpus += mem
-                    except Exception:
-                        pass
-
-                # Реальная system GPU utilization на GPU, где есть Ollama
-                total_util = 0
-                for gpu_id in ollama_gpu_ids:
-                    try:
-                        handle = gpu_handles[gpu_id]
-                        util = pynvml.nvmlDeviceGetUtilizationRates(handle)
-                        total_util += util.gpu
-                    except Exception:
-                        pass
-                system_util = total_util / gpu_count if gpu_count > 0 else 0
-
-                if other_compute_found and total_ollama_gpu_mem_bytes > 0:
-                    # Есть другие compute-процессы — оцениваем долю Ollama по памяти
-                    mem_ratio = ollama_mem_shared_gpus / max(total_mem_shared_gpus, 1)
-                    gpu_util = system_util * mem_ratio
-                    logger.debug(
-                        f"⚖️ Другие compute-процессы, оценка по памяти: {gpu_util:.1f}% (share={mem_ratio:.2f})"
-                    )
-                else:
-                    # Только Ollama на GPU — показываем реальную utilization
-                    gpu_util = system_util
-                    logger.debug(
-                        f"✅ На GPU {ollama_gpu_ids} только Ollama, utilization = {gpu_util:.1f}%"
-                    )
-            else:
-                gpu_util = 0
-
         return {
             "cpu": round(cpu_percent, 2),
             "ram_percent": round(ram_percent, 2),
@@ -418,8 +394,49 @@ def collect_metrics():
             iteration += 1
             timestamp = datetime.now().isoformat()
 
+            # 1. Read all GPU metrics in one pass
+            sys_gpu_util_val = 0
+            sys_gpu_mem_val = 0
+            per_process = {}
+            ollama_gpu_util_val = 0
+
+            if NVIDIA_AVAILABLE and gpu_handles:
+                total_util = 0
+                total_mem_used = 0
+                total_mem_total = 0
+
+                for gpu_id, handle in enumerate(gpu_handles):
+                    try:
+                        util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                        total_util += util.gpu
+
+                        mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                        total_mem_used += mem_info.used
+                        total_mem_total += mem_info.total
+
+                        samples = pynvml.nvmlDeviceGetProcessUtilization(handle, 0)
+                        for sample in samples:
+                            pid = sample.pid
+                            if pid not in per_process:
+                                per_process[pid] = {}
+                            per_process[pid][gpu_id] = sample.smUtil
+                    except Exception:
+                        pass
+
+                sys_gpu_util_val = total_util / gpu_count if gpu_count > 0 else 0
+                sys_gpu_mem_val = (total_mem_used / total_mem_total * 100) if total_mem_total > 0 else 0
+
+                ollama_pids = get_ollama_container_pids()
+                ollama_gpu_util_val = compute_ollama_gpu_from_per_process(per_process, ollama_pids)
+
+            # 2. Collect CPU/RAM via existing functions (GPU reads inside are redundant but harmless)
             sys_metrics = get_system_metrics()
             ollama_metrics = get_ollama_metrics()
+
+            # 3. Override GPU with values from the single measurement pass
+            sys_metrics["gpu_util"] = sys_gpu_util_val
+            sys_metrics["gpu_mem"] = sys_gpu_mem_val
+            ollama_metrics["gpu_util"] = ollama_gpu_util_val
 
             metrics["timestamps"].append(timestamp)
             for key in metrics["system"]:
