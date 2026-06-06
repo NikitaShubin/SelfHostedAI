@@ -568,6 +568,39 @@ def unload_all_ollama_models():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/api/ollama/cancel-load", methods=["POST"])
+def cancel_ollama_load():
+    """Принудительно остановить загрузку модели (убить llama-server)"""
+    try:
+        result = subprocess.run(
+            ["docker", "exec", "ollama", "ps", "aux"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            return jsonify({"success": False, "error": "Не удалось получить процессы Ollama"}), 500
+
+        killed = []
+        for line in result.stdout.split("\n"):
+            if "llama-server" in line and "--model" in line:
+                parts = line.split()
+                if len(parts) > 1:
+                    pid = parts[1]
+                    subprocess.run(
+                        ["docker", "exec", "ollama", "kill", pid],
+                        capture_output=True, text=True, timeout=10,
+                    )
+                    killed.append(pid)
+                    logger.info(f"✅ Убит процесс llama-server (PID {pid})")
+
+        if not killed:
+            return jsonify({"success": False, "error": "Процесс llama-server не найден"}), 404
+
+        return jsonify({"success": True, "killed_pids": killed})
+    except Exception as e:
+        logger.error(f"❌ Ошибка отмены загрузки: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/ollama/models")
 def get_ollama_models():
     """Получить список загруженных моделей Ollama"""

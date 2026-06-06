@@ -390,6 +390,16 @@
             background: rgba(239, 68, 68, 0.35);
         }
         
+        .btn-cancel {
+            background: rgba(234, 179, 8, 0.2);
+            color: #fde68a;
+            border: 1px solid rgba(234, 179, 8, 0.3);
+        }
+        
+        .btn-cancel:hover {
+            background: rgba(234, 179, 8, 0.35);
+        }
+        
         .btn-unload-all {
             background: rgba(239, 68, 68, 0.15);
             color: #f87171;
@@ -1102,7 +1112,9 @@
                     html += '</div>';
                     html += '<div class="model-details">' + (isL ? 'Загрузка в GPU память' : size + (details ? ' &middot; ' + details : '')) + '</div>';
                     html += '</div>';
-                    if (!isL) {
+                    if (isL) {
+                        html += '<button class="btn btn-cancel" onclick="cancelLoading()">Отменить</button>';
+                    } else {
                         html += '<button class="btn btn-unload" onclick="unloadModel(\'' + m.name.replace(/'/g, "\\'") + '\')">Выгрузить</button>';
                     }
                     html += '</div>';
@@ -1188,6 +1200,33 @@
             }
             
             setTimeout(loadModels, 2000);
+        }
+
+        async function cancelLoading() {
+            const statusEl = document.getElementById('modelStatus');
+            statusEl.className = 'model-status';
+            statusEl.textContent = 'Остановка загрузки...';
+
+            try {
+                const resp = await fetch('/api/ollama/cancel-load', {
+                    method: 'POST',
+                    signal: AbortSignal.timeout(15000)
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    statusEl.className = 'model-status model-status-success';
+                    statusEl.textContent = '✅ Загрузка отменена';
+                } else {
+                    statusEl.className = 'model-status model-status-error';
+                    statusEl.textContent = '❌ Ошибка: ' + (data.error || 'неизвестная ошибка');
+                }
+            } catch (e) {
+                statusEl.className = 'model-status model-status-error';
+                statusEl.textContent = '❌ Ошибка: ' + e.message;
+            }
+
+            setTimeout(loadModels, 1000);
         }
 
         // Load models after init with auto-refresh
