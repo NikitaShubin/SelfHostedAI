@@ -344,6 +344,32 @@
             font-size: 0.75em;
         }
         
+        .model-loading {
+            border-color: rgba(234, 179, 8, 0.3);
+            background: rgba(234, 179, 8, 0.06);
+        }
+        
+        .loading-badge {
+            color: #eab308;
+            font-size: 0.75em;
+            font-weight: 400;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(234, 179, 8, 0.3);
+            border-top-color: #eab308;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            vertical-align: middle;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
         .btn {
             padding: 5px 12px;
             border: none;
@@ -1036,7 +1062,14 @@
                 const resp = await fetch('/api/ollama/models', { signal: AbortSignal.timeout(5000) });
                 const data = await resp.json();
                 
-                if (!data.success || !data.models || data.models.length === 0) {
+                if (!data.success) {
+                    listEl.innerHTML = '<div class="model-empty">Ошибка получения списка моделей</div>';
+                    statusEl.className = 'model-status model-status-error';
+                    statusEl.textContent = data.error || 'Неизвестная ошибка';
+                    unloadAllBtn.disabled = true;
+                    return;
+                }
+                if (!data.models || data.models.length === 0) {
                     listEl.innerHTML = '<div class="model-empty">Нет загруженных моделей</div>';
                     statusEl.className = 'model-status model-status-success';
                     statusEl.textContent = 'Модели не загружены';
@@ -1047,31 +1080,46 @@
                 unloadAllBtn.disabled = false;
                 let html = '<div class="model-list">';
                 
-                const totalMem = data.models.reduce((s, m) => s + m.size, 0);
-                const memStr = totalMem > 1073741824 ? `${(totalMem / 1073741824).toFixed(1)} GB` :
-                               totalMem > 1048576 ? `${(totalMem / 1048576).toFixed(0)} MB` :
-                               `${(totalMem / 1024).toFixed(0)} KB`;
+                let loadedCount = 0;
+                let loadingCount = 0;
                 
                 data.models.forEach(m => {
+                    const isL = m.status === 'loading';
+                    if (isL) loadingCount++; else loadedCount++;
+                    
                     const size = m.size_formatted || 
                         (m.size > 1073741824 ? `${(m.size / 1073741824).toFixed(1)} GB` :
                          m.size > 1048576 ? `${(m.size / 1048576).toFixed(0)} MB` :
                          `${(m.size / 1024).toFixed(0)} KB`);
                     const details = [m.parameter_size, m.quantization].filter(Boolean).join(' / ');
                     
-                    html += '<div class="model-item">';
+                    html += '<div class="model-item' + (isL ? ' model-loading' : '') + '">';
                     html += '<div class="model-info">';
-                    html += '<div class="model-name">' + m.name + '</div>';
-                    html += '<div class="model-details">' + size + (details ? ' &middot; ' + details : '') + '</div>';
+                    html += '<div class="model-name">';
+                    if (isL) html += '<span class="loading-spinner"></span> ';
+                    html += m.name;
+                    if (isL) html += ' <span class="loading-badge">⏳ загружается...</span>';
                     html += '</div>';
-                    html += '<button class="btn btn-unload" onclick="unloadModel(\'' + m.name.replace(/'/g, "\\'") + '\')">Выгрузить</button>';
+                    html += '<div class="model-details">' + (isL ? 'Загрузка в GPU память' : size + (details ? ' &middot; ' + details : '')) + '</div>';
+                    html += '</div>';
+                    if (!isL) {
+                        html += '<button class="btn btn-unload" onclick="unloadModel(\'' + m.name.replace(/'/g, "\\'") + '\')">Выгрузить</button>';
+                    }
                     html += '</div>';
                 });
                 
                 html += '</div>';
                 listEl.innerHTML = html;
+                
+                const memTotal = data.models.filter(m => m.status !== 'loading').reduce((s, m) => s + m.size, 0);
+                const memStr = memTotal > 1073741824 ? `${(memTotal / 1073741824).toFixed(1)} GB` :
+                               memTotal > 1048576 ? `${(memTotal / 1048576).toFixed(0)} MB` :
+                               `${(memTotal / 1024).toFixed(0)} KB`;
                 statusEl.className = 'model-status model-status-success';
-                statusEl.textContent = data.count + ' моделей (' + memStr + ')';
+                const parts = [];
+                if (loadedCount > 0) parts.push(loadedCount + ' моделей (' + memStr + ')');
+                if (loadingCount > 0) parts.push(loadingCount + ' загружается');
+                statusEl.textContent = parts.join(', ');
             } catch (e) {
                 listEl.innerHTML = '<div class="model-empty">Ошибка загрузки списка моделей</div>';
                 statusEl.className = 'model-status model-status-error';
@@ -1142,11 +1190,12 @@
             setTimeout(loadModels, 2000);
         }
 
-        // Load models after init
+        // Load models after init with auto-refresh
         const origInit = init;
         init = async function() {
             await origInit();
             setTimeout(loadModels, 3000);
+            setInterval(loadModels, 30000);
         };
         init();
     </script>

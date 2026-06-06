@@ -3,8 +3,10 @@
 # ВЕРСИЯ С ИСПРАВЛЕННЫМИ RAM/CPU/GPU МЕТРИКАМИ
 
 import os
+import re
 import time
 import threading
+import urllib.request
 from collections import deque
 from datetime import datetime
 import logging
@@ -507,8 +509,6 @@ def get_system_info():
 def unload_ollama_model(model):
     """Выгрузить модель из памяти Ollama через keep_alive=0"""
     try:
-        import urllib.request
-
         req = urllib.request.Request(
             "http://ollama:11434/api/generate",
             data=json.dumps({"model": model, "keep_alive": 0}).encode(),
@@ -528,8 +528,6 @@ def unload_ollama_model(model):
 def unload_all_ollama_models():
     """Выгрузить все модели из памяти Ollama"""
     try:
-        import urllib.request
-
         req = urllib.request.Request("http://ollama:11434/api/ps")
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read().decode())
@@ -574,8 +572,6 @@ def unload_all_ollama_models():
 def get_ollama_models():
     """Получить список загруженных моделей Ollama"""
     try:
-        import urllib.request
-
         req = urllib.request.Request("http://ollama:11434/api/ps")
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read().decode())
@@ -594,10 +590,85 @@ def get_ollama_models():
                 }
             )
 
+        # Проверяем, не загружается ли ещё модель (llama-server в процессе прогрева)
+        loading = get_loading_model()
+        if loading and not any(m["name"] == loading["name"] for m in models):
+            models.append(loading)
+
         return jsonify({"success": True, "models": models, "count": len(models)})
     except Exception as e:
         logger.error(f"❌ Ошибка получения моделей: {e}")
         return jsonify({"success": False, "models": [], "count": 0, "error": str(e)})
+
+
+def get_loading_model():
+    """Определить модель, которая сейчас загружается (llama-server запущен, но /api/ps ещё пуст)"""
+    try:
+        result = subprocess.run(
+            ["docker", "exec", "ollama", "ps", "aux"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            return None
+
+        hex_hash = None
+        for line in result.stdout.split("\n"):
+            if "llama-server" in line and "--model" in line:
+                m = re.search(r"--model\s+\S+/sha256-(\w+)", line)
+                if m:
+                    hex_hash = m.group(1)
+                    break
+
+        if not hex_hash:
+            return None
+
+        # Ищем в манифестах модель, использующую этот blob
+        # В манифестах хеш записан как sha256:hex_hash
+        grep = subprocess.run(
+            ["docker", "exec", "ollama", "find",
+             "/root/.ollama/models/manifests", "-type", "f",
+             "-exec", "grep", "-l", hex_hash, "{}", "+"],
+            capture_output=True, text=True, timeout=10,
+        )
+
+        name = None
+        if grep.returncode == 0 and grep.stdout.strip():
+            path = grep.stdout.strip().split("\n")[0]
+            m = re.search(r"library/([^/]+)/([^/]+)$", path)
+            if m:
+                name = f"{m.group(1)}:{m.group(2)}"
+
+        if not name:
+            return {"name": f"sha256-{hex_hash}", "status": "loading", "size": 0}
+
+        # Обогащаем данными из /api/tags (размер на диске, параметры, квантование)
+        try:
+            tags_req = urllib.request.Request("http://ollama:11434/api/tags")
+            with urllib.request.urlopen(tags_req, timeout=10) as tags_resp:
+                tags_data = json.loads(tags_resp.read().decode())
+            for m in tags_data.get("models", []):
+                if m.get("name") == name:
+                    details = m.get("details", {})
+                    return {
+                        "name": name,
+                        "status": "loading",
+                        "size": m.get("size", 0),
+                        "size_formatted": m.get("size", 0) > 0 and (
+                            f"{m['size'] / 1073741824:.1f} GB" if m['size'] > 1073741824
+                            else f"{m['size'] / 1048576:.0f} MB"
+                        ) or "",
+                        "processor": details.get("format", ""),
+                        "family": details.get("family", ""),
+                        "parameter_size": details.get("parameter_size", ""),
+                        "quantization": details.get("quantization_level", ""),
+                    }
+        except Exception:
+            pass
+
+        return {"name": name, "status": "loading", "size": 0}
+    except Exception as e:
+        logger.error(f"❌ Ошибка определения загружаемой модели: {e}")
+        return None
 
 
 logger.info("=== ИНИЦИАЛИЗАЦИЯ ПАНЕЛИ УПРАВЛЕНИЯ ===")
