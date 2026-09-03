@@ -13,9 +13,18 @@ fi
 
 source "./lib.sh"
 
-OLLAMA_PORT=$(get_host_port ollama 11434)
-DASHBOARD_PORT=$(get_host_port dashboard 5000)
-WEBUI_PORT=$(get_host_port webui 8080)
+# Читаем фактические хостовые порты из запущенных контейнеров
+# (те, что реально назначил docker; если контейнер не запущен — fallback на дефолт из YAML)
+OLLAMA_PORT=$(get_running_host_port ollama 11434)
+[ -z "$OLLAMA_PORT" ] && OLLAMA_PORT=$(get_default_host_port ollama 11434)
+DASHBOARD_PORT=$(get_running_host_port ai-dashboard 5000)
+[ -z "$DASHBOARD_PORT" ] && DASHBOARD_PORT=$(get_default_host_port dashboard 5000)
+WEBUI_PORT=$(get_running_host_port open-webui 8080)
+[ -z "$WEBUI_PORT" ] && WEBUI_PORT=$(get_default_host_port webui 8080)
+NGINX_HTTP_PORT=$(get_running_host_port nginx-proxy 80)
+[ -z "$NGINX_HTTP_PORT" ] && NGINX_HTTP_PORT=$(get_default_host_port nginx 80)
+NGINX_HTTPS_PORT=$(get_running_host_port nginx-proxy 443)
+[ -z "$NGINX_HTTPS_PORT" ] && NGINX_HTTPS_PORT=$(get_default_host_port nginx 443)
 
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 echo -e "${BLUE}  Состояние AI стека${NC}"
@@ -34,9 +43,24 @@ else
     echo -e "  ${RED}❌${NC} Панель управления  ${DIM}недоступна${NC}"
 fi
 
-if timeout 5 curl -s "http://localhost:${WEBUI_PORT}" > /dev/null 2>&1; then
-    echo -e "  ${CYAN}✅${NC} WebUI              ${BOLD}http://localhost:${WEBUI_PORT}${NC}"
-else
+# WebUI: доступ через nginx (HTTPS/HTTP) и прямой порт (если замаплен)
+WEBUI_OK=0
+HTTPS_BASE="https://localhost"
+[ "$NGINX_HTTPS_PORT" != "443" ] && HTTPS_BASE="https://localhost:${NGINX_HTTPS_PORT}"
+if timeout 5 curl -sk -o /dev/null -w "%{http_code}" "$HTTPS_BASE/" | grep -qE "200|30[0-9]"; then
+    echo -e "  ${CYAN}✅${NC} WebUI (HTTPS)      ${BOLD}${HTTPS_BASE}${NC}"
+    WEBUI_OK=1
+elif timeout 5 curl -s -o /dev/null "http://localhost:${NGINX_HTTP_PORT}/" 2>/dev/null; then
+    echo -e "  ${CYAN}✅${NC} WebUI (HTTP)       ${BOLD}http://localhost:${NGINX_HTTP_PORT}${NC}"
+    WEBUI_OK=1
+fi
+
+if [ -n "$WEBUI_PORT" ] && timeout 5 curl -s "http://localhost:${WEBUI_PORT}" > /dev/null 2>&1; then
+    echo -e "  ${CYAN}✅${NC} WebUI (прямой)     ${BOLD}http://localhost:${WEBUI_PORT}${NC}"
+    WEBUI_OK=1
+fi
+
+if [ "$WEBUI_OK" = "0" ]; then
     echo -e "  ${RED}❌${NC} WebUI              ${DIM}недоступен${NC}"
 fi
 

@@ -13,9 +13,17 @@ fi
 
 source "./lib.sh"
 
-OLLAMA_PORT=$(get_host_port ollama 11434)
-DASHBOARD_PORT=$(get_host_port dashboard 5000)
-WEBUI_PORT=$(get_host_port webui 8080)
+# Флаг строгого режима: --strict / STRICT_PORTS=1 → вместо подбора свободного порта
+# останавливаемся с ошибкой при занятости порта (прежнее поведение check_port_conflicts)
+STRICT=0
+for arg in "$@"; do
+    case "$arg" in
+        --strict) STRICT=1 ;;
+        -s) STRICT=1 ;;
+        *) ;;
+    esac
+done
+[ "${STRICT_PORTS:-0}" = "1" ] && STRICT=1
 
 echo ""
 echo -e "${BLUE}════════════════════════════════════════${NC}"
@@ -23,16 +31,38 @@ echo -e "${BLUE}  Запуск AI стека${NC}"
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 echo ""
 
-echo -e "${BOLD}🔍 Проверка портов...${NC}"
-if ! check_port_conflicts \
-    "${OLLAMA_PORT}:Ollama" \
-    "${DASHBOARD_PORT}:Dashboard" \
-    "${WEBUI_PORT}:WebUI"; then
-    echo ""
-    echo -e "${YELLOW}💡 Измените порты в docker-compose.yaml и перезапустите${NC}"
-    exit 1
+if [ "$STRICT" = "1" ]; then
+    echo -e "${BOLD}🔍 Проверка портов (строгий режим)...${NC}"
+    OLLAMA_PORT=$(get_default_host_port ollama 11434)
+    DASHBOARD_PORT=$(get_default_host_port dashboard 5000)
+    WEBUI_PORT=$(get_default_host_port webui 8080)
+    if ! check_port_conflicts \
+        "${OLLAMA_PORT}:Ollama" \
+        "${DASHBOARD_PORT}:Dashboard" \
+        "${WEBUI_PORT}:WebUI"; then
+        echo ""
+        echo -e "${YELLOW}💡 Измените порты в docker-compose.yaml и перезапустите, или запустите без --strict для авто-подбора свободных портов${NC}"
+        exit 1
+    fi
+    echo -e "  ${GREEN}✅ Все порты свободны${NC}"
+else
+    echo -e "${BOLD}🔍 Подбор портов (при занятости будет выбран свободный)...${NC}"
+    ensure_free_ports \
+        "OLLAMA_PORT:ollama:11434" \
+        "WEBUI_PORT:webui:8080" \
+        "DASHBOARD_PORT:dashboard:5000" \
+        "NGINX_HTTP_PORT:nginx:80" \
+        "NGINX_HTTPS_PORT:nginx:443"
 fi
-echo -e "  ${GREEN}✅ Все порты свободны${NC}"
+echo ""
+
+echo -e "${BOLD}🔐 Подготовка SSL (автоопределение внешних IP)...${NC}"
+export SSL_SAN_IPS="$(get_external_host_ips)"
+if [ -n "$SSL_SAN_IPS" ]; then
+    echo -e "  ${GREEN}✅${NC} Внешние адреса для сертификата: ${SSL_SAN_IPS//IP:/ }"
+else
+    echo -e "  ${YELLOW}⚠  Внешние IP не найдены — сертификат будет только на localhost${NC}"
+fi
 echo ""
 
 echo -e "${BOLD}🚀 Сборка и запуск контейнеров...${NC}"
