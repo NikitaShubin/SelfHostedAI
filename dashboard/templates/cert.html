@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Установка сертификата — AI Stack</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 30px;
+        }
+        .page {
+            max-width: 820px;
+            margin: 0 auto;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 14px;
+            padding: 30px;
+        }
+        h1 {
+            color: #f8fafc;
+            font-size: 1.6em;
+            margin-bottom: 6px;
+        }
+        .intro {
+            color: #94a3b8;
+            font-size: 0.95em;
+            margin-bottom: 20px;
+        }
+        .why {
+            background: rgba(96, 165, 250, 0.12);
+            border: 1px solid rgba(96, 165, 250, 0.25);
+            border-left: 4px solid #3b82f6;
+            border-radius: 8px;
+            padding: 14px 16px;
+            margin-bottom: 22px;
+            line-height: 1.55;
+        }
+        .why b {
+            color: #93c5fd;
+        }
+        .download {
+            text-align: center;
+            margin: 24px 0 28px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 28px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1em;
+            transition: all 0.15s ease;
+            border: 1px solid rgba(96, 165, 250, 0.3);
+            background: rgba(59, 130, 246, 0.25);
+            color: #bfdbfe;
+        }
+        .btn:hover {
+            background: rgba(59, 130, 246, 0.45);
+        }
+        .btn.disabled {
+            background: rgba(148, 163, 184, 0.2);
+            border-color: rgba(148, 163, 184, 0.3);
+            color: #94a3b8;
+            pointer-events: none;
+        }
+        h2 {
+            color: #f1f5f9;
+            font-size: 1.15em;
+            margin: 22px 0 12px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+            padding-bottom: 6px;
+        }
+        .step {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(148, 163, 184, 0.15);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            line-height: 1.55;
+            font-size: 0.95em;
+        }
+        .step b {
+            color: #93c5fd;
+        }
+        .cmd {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(30, 41, 59, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin: 6px 0;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.92em;
+            color: #fda4af;
+            word-break: break-all;
+        }
+        .cmd code {
+            background: transparent;
+            border: none;
+            padding: 0;
+            flex: 1;
+            color: #fda4af;
+        }
+        .copy-btn {
+            background: rgba(96, 165, 250, 0.15);
+            color: #93c5fd;
+            border: 1px solid rgba(96, 165, 250, 0.3);
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 0.85em;
+            white-space: nowrap;
+            transition: all 0.15s ease;
+        }
+        .copy-btn:hover {
+            background: rgba(96, 165, 250, 0.3);
+        }
+        .copy-btn.copied {
+            background: rgba(52, 211, 153, 0.2);
+            border-color: rgba(52, 211, 153, 0.3);
+            color: #6ee7b7;
+        }
+        code {
+            background: rgba(30, 41, 59, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: 0.9em;
+            color: #fda4af;
+        }
+        .note {
+            color: #94a3b8;
+            font-size: 0.88em;
+            margin-top: 20px;
+            border-top: 1px solid rgba(148, 163, 184, 0.15);
+            padding-top: 12px;
+        }
+        .back {
+            display: inline-block;
+            margin-bottom: 18px;
+            color: #93c5fd;
+            text-decoration: none;
+            font-size: 0.9em;
+        }
+        .back:hover {
+            color: #bfdbfe;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <a class="back" href="/">← Назад к панели управления</a>
+        <h1>🔐 Установка сертификата</h1>
+        <p class="intro">Корневой сертификат (CA) этого сервера — чтобы подключиться к нему безопасно и по всем адресам сети.</p>
+
+        <div class="why">
+            <b>Зачем это нужно?</b><br>
+            Стек использует собственный (локальный) центр сертификации для HTTPS. Браузеры блокируют доступ к микрофону и динамикам
+            на сайтах, чей сертификат не вызывает доверия. Поэтому без установки этого сертификата <b>голосовой ввод (STT) и
+            озвучка (TTS) работать не будут</b> — даже если страница открывается по https. Установив сертификат один раз, вы
+            разрешаете работу микрофона и динамиков на любом адресе этого сервера.
+        </div>
+
+        <div class="why" style="background: rgba(234,179,8,0.1); border-color: rgba(234,179,8,0.25); border-left-color:#eab308;">
+            <b>Важно: устанавливайте сертификат именно в браузер.</b><br>
+            Яндекс Браузер и Chrome используют собственное хранилище доверенных сертификатов,
+            а не системное. Поэтому одной установки <code>ca.crt</code> в систему (через
+            <code>update-ca-certificates</code> на Linux) <b>недостаточно</b> — сайт всё равно будет
+            показывать «Не защищено», и микрофон останется заблокированным. Способ через
+            <code>browser://certificate-manager/</code> ниже — основной и самый надёжный.
+        </div>
+
+        <div class="download">
+            {% if cert_available %}
+                <a class="btn" href="{{ cert_path }}" download>⬇ Скачать сертификат (ca.crt)</a>
+            {% else %}
+                <span class="btn disabled">Сертификат ещё не готов — повторите позже</span>
+            {% endif %}
+        </div>
+
+        <h2>Установка: Windows (Яндекс Браузер / Chrome / Edge)</h2>
+        <div class="step"><b>Основной способ — импорт в браузер:</b></div>
+        <div class="step">1. Скачайте <code>ca.crt</code> кнопкой выше.</div>
+        <div class="step">2. В адресной строке браузера откройте <code>browser://certificate-manager/</code> (в Chrome — <code>chrome://certificate-manager</code>).</div>
+        <div class="step">3. Перейдите в раздел <b>«Персонализированные»</b> → <b>«Доверенные сертификаты»</b> → нажмите <b>«Импорт»</b> → выберите скачанный <code>ca.crt</code>.</div>
+        <div class="step">4. Подтвердите, что это корневой центр, и закончите импорт.</div>
+        <div class="step">5. <b>Полностью закройте браузер и откройте заново</b> → откройте сайт — щит должен стать не перечёркнутым («Защищено»).</div>
+        <div class="step"><b>Альтернатива (системное хранилище Windows):</b></div>
+        <div class="step">1. Нажмите <b>Win + R</b>, введите <code>certmgr.msc</code> и нажмите Enter.</div>
+        <div class="step">2. В дереве слева разверните <b>Доверенные корневые центры сертификации</b> → правый клик по <b>Сертификаты</b> → <b>Все задачи</b> → <b>Импорт</b>.</div>
+        <div class="step">3. <b>Далее</b> → <b>Обзор</b> → выберите <code>ca.crt</code> → <b>Далее</b> → «Поместить все сертификаты в следующее хранилище» → <b>Обзор</b> → <b>Доверенные корневые центры сертификации</b> → <b>ОК</b> → <b>Готово</b> → <b>Да</b>.</div>
+        <div class="step">4. Полностью перезапустите браузер.</div>
+
+        <h2>Установка: Linux (Яндекс Браузер / Chrome)</h2>
+        <div class="step"><b>Основной способ — импорт в браузер (иначе «Не защищено»):</b></div>
+        <div class="step">1. Скачайте <code>ca.crt</code> кнопкой выше.</div>
+        <div class="step">2. В адресной строке откройте <code>browser://certificate-manager/</code> (в Chrome — <code>chrome://certificate-manager</code>).</div>
+        <div class="step">3. Раздел <b>«Персонализированные»</b> → <b>«Доверенные сертификаты»</b> → <b>«Импорт»</b> → выберите <code>ca.crt</code> → подтвердите, что это корневой центр.</div>
+        <div class="step">4. <b>Полностью перезапустите браузер</b> → откройте сайт — щит должен стать не перечёркнутым, микрофон станет доступен.</div>
+        <div class="step"><b>Альтернатива — системное хранилище</b> (для системных приложений: curl, openssl):</div>
+        <div class="cmd"><code>sudo cp ca.crt /usr/local/share/ca-certificates/selfhosted-ai-ca.crt</code><button class="copy-btn" onclick="copyCmd(this)">📋 Копировать</button></div>
+        <div class="cmd"><code>sudo update-ca-certificates</code><button class="copy-btn" onclick="copyCmd(this)">📋 Копировать</button></div>
+        <div class="step">Затем <b>полностью перезапустите браузер</b>. Внимание: одного этого системного способа для Яндекс/Chrome может быть недостаточно — предпочтите способ выше.</div>
+
+        <h2>Установка: Android</h2>
+        <div class="step">1. Скачайте <code>ca.crt</code> на устройство.</div>
+        <div class="step">2. Настройки → Безопасность → <b>Ещё настройки безопасности</b> → <b>Установка сертификатов</b> → <b>Сертификат CA</b> → выберите файл.</div>
+        <div class="step">3. Перезапустите браузер.</div>
+
+        <h2>После установки</h2>
+        <div class="step">1. Полностью перезапустите браузер и откройте сайт по <b>https</b> (например <code>https://192.168.162.119/</code>) — щит должен стать не перечёркнутым («Защищено»).</div>
+        <div class="step">2. Разрешите микрофон: кликните на значок у адресной строки → раздел <b>«Микрофон»</b> → <b>«Разрешить»</b> (или через <code>browser://settings/content/microphone</code>, в Chrome — <code>chrome://settings/content/microphone</code>).</div>
+        <div class="step">3. Обновите страницу — голосовой ввод (STT) и озвучка (TTS) заработают.</div>
+
+        <div class="why" style="background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.25); border-left-color:#3b82f6;">
+            <b>На Linux озвучка (TTS) не работает в Chrome/Яндекс?</b><br>
+            Это известное ограничение Chromium на Linux — Web Speech API не интегрирована с системным TTS.
+            Используйте <b>Firefox</b> — он работает сpeech-dispatcher/RHVoice из коробки.
+            Chrome/Яндекс на Windows/macOS озвучивают без проблем.
+        </div>
+
+        <div class="why" style="background: rgba(234,179,8,0.1); border-color: rgba(234,179,8,0.25); border-left-color:#eab308;">
+            <b>Щит не перечёркнут, но микрофон всё равно «отказано»?</b><br>
+            Значит сертификат уже доверенный, а блокирует именно <b>разрешение на микрофон</b> в самом браузере
+            (сайта может не быть ни в «Разрешено», ни в «Запрещено» — тогда браузер просто ещё не спрашивал).
+            Откройте страницу по <b>https</b> (не прямой <code>http://…:8081</code> — на http браузер запрещает
+            микрофон в принципе), нажмите значок у адресной строки → «Микрофон» → <b>«Разрешить»</b>,
+            затем перезагрузите страницу (F5). Если запроса на микрофон нет — проверьте, что микрофон доступен
+            в системе (не занят другим приложением и виден браузеру).
+        </div>
+
+        <p class="note">Сертификат создаётся автоматически и покрывает localhost и все внешние сетевые адреса сервера.
+        При перезапуске сервиса обновлять его на устройствах снова не нужно — достаточно установить один раз.
+        Скачивайте <code>ca.crt</code> именно кнопкой выше, чтобы получить свежую версию CA.</p>
+    </div>
+    <script>
+        function copyCmd(btn) {
+            const code = btn.parentElement.querySelector('code');
+            const text = code.textContent.trim();
+            const done = function () {
+                btn.textContent = '✓ Скопировано';
+                btn.classList.add('copied');
+                setTimeout(function () {
+                    btn.textContent = '📋 Копировать';
+                    btn.classList.remove('copied');
+                }, 2000);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(done).catch(function () {
+                    fallbackCopy(text);
+                    done();
+                });
+            } else {
+                fallbackCopy(text);
+                done();
+            }
+        }
+        function fallbackCopy(text) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+        }
+    </script>
+</body>
+</html>
