@@ -22,7 +22,10 @@ try:
 except ImportError:
     NVIDIA_AVAILABLE = False
 
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, send_file, abort
+
+# Путь к корневому сертификату CA (монтируется из хоста в /workspace через docker-compose)
+CA_CERT_PATH = "/workspace/data/nginx/ca.crt"
 
 # Настройка логирования
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -464,6 +467,30 @@ def index():
         "index.html",
         update_interval=UPDATE_INTERVAL * 1000,
         retention_minutes=RETENTION_TIME // 60,
+    )
+
+
+@app.route("/cert")
+def cert_page():
+    """Страница с инструкцией по установке корневого сертификата и кнопкой скачивания."""
+    cert_available = os.path.isfile(CA_CERT_PATH)
+    return render_template(
+        "cert.html",
+        cert_available=cert_available,
+        cert_path="/ca.crt",
+    )
+
+
+@app.route("/ca.crt")
+def download_ca():
+    """Скачивание корневого сертификата CA."""
+    if not os.path.isfile(CA_CERT_PATH):
+        abort(404, description="Корневой сертификат ещё не создан.")
+    return send_file(
+        CA_CERT_PATH,
+        as_attachment=True,
+        download_name="ca.crt",
+        mimetype="application/x-x509-ca-cert",
     )
 
 
