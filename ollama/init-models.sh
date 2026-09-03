@@ -61,23 +61,58 @@ else
     echo "$MODELS" | tr ' ' '\n' | sed 's/^/  - /'
     echo ""
 
+    # Проверяет, что модель реально присутствует в Ollama
+    model_present() {
+        local name=$1
+        curl -s http://localhost:11434/api/tags 2>/dev/null | \
+            jq -e ".models[] | select(.name == \"$name\")" > /dev/null 2>&1
+    }
+
+    # Кол-во попыток загрузки одной модели (на случай транзитных сбоев DNS/сети)
+    PULL_ATTEMPTS=3
+
     # Проходим по каждой модели из списка
     for model in $MODELS; do
         echo "Проверяем модель: $model"
 
-        # Проверяем, загружена ли модель уже
-        if curl -s http://localhost:11434/api/tags | jq -e ".models[] | select(.name == \"$model\")" > /dev/null 2>&1; then
+        if model_present "$model"; then
             echo "  ✓ Модель '$model' уже загружена"
-        else
-            echo "  Загружаем модель: $model"
-            echo "  Это может занять несколько минут в зависимости от размера модели..."
-            # Загружаем модель через ollama pull
-            if ollama pull "$model" 2>&1 | tee /tmp/ollama_pull.log; then
-                echo "  ✓ Модель '$model' успешно загружена"
-            else
-                echo "  ✗ Ошибка при загрузке модели '$model'"
-                echo "    Проверьте название модели и наличие интернета"
+            echo ""
+            continue
+        fi
+
+        echo "  Загружаем модель: $model"
+        echo "  Это может занять несколько минут в зависимости от размера модели..."
+
+        ATTEMPT=1
+        PULL_OK=0
+        while [ $ATTEMPT -le $PULL_ATTEMPTS ]; do
+            if [ $ATTEMPT -gt 1 ]; then
+                echo "    Попытка $ATTEMPT/$PULL_ATTEMPTS (после паузы 10с)..."
+                sleep 10
             fi
+
+            # pull в отдельной строке, чтобы любые ошибки дошли до проверки ниже
+            if ollama pull "$model" 2>&1 | tee /tmp/ollama_pull.log; then
+                : # код конвейера = tee, поэтому полагаемся на проверку наличия модели
+            fi
+
+            # Критерий успеха — фактическое наличие модели, а не код конвейера
+            if model_present "$model"; then
+                PULL_OK=1
+                break
+            fi
+
+            echo "    ⚠  Не удалось загрузить '$model', код части конвейера мог скрыть ошибку."
+            echo "       $(tail -1 /tmp/ollama_pull.log 2>/dev/null)"
+            ATTEMPT=$((ATTEMPT + 1))
+        done
+
+        if [ "$PULL_OK" = "1" ]; then
+            echo "  ✓ Модель '$model' успешно загружена"
+        else
+            echo "  ✗ Ошибка при загрузке модели '$model' после $PULL_ATTEMPTS попыток"
+            echo "    Проверьте название модели, сетевой доступ и DNS"
         fi
         echo ""
     done
