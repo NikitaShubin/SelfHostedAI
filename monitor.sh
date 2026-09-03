@@ -11,6 +11,12 @@ else
     GREEN=''; RED=''; YELLOW=''; BLUE=''; PURPLE=''; CYAN=''; BOLD=''; DIM=''; NC=''
 fi
 
+source "./lib.sh"
+
+OLLAMA_PORT=$(get_host_port ollama 11434)
+DASHBOARD_PORT=$(get_host_port dashboard 5000)
+WEBUI_PORT=$(get_host_port webui 8080)
+
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 echo -e "${BLUE}  Состояние AI стека${NC}"
 echo -e "${BLUE}════════════════════════════════════════${NC}"
@@ -22,21 +28,21 @@ echo ""
 
 echo -e "${BOLD}🌐 Сервисы:${NC}"
 
-if timeout 5 curl -s http://localhost:5000/api/system-info > /dev/null 2>&1; then
-    echo -e "  ${PURPLE}✅${NC} Панель управления  ${BOLD}http://localhost:5000${NC}"
+if timeout 5 curl -s "http://localhost:${DASHBOARD_PORT}/api/system-info" > /dev/null 2>&1; then
+    echo -e "  ${PURPLE}✅${NC} Панель управления  ${BOLD}http://localhost:${DASHBOARD_PORT}${NC}"
 else
     echo -e "  ${RED}❌${NC} Панель управления  ${DIM}недоступна${NC}"
 fi
 
-if timeout 5 curl -s http://localhost:8080 > /dev/null 2>&1; then
-    echo -e "  ${CYAN}✅${NC} WebUI              ${BOLD}http://localhost:8080${NC}"
+if timeout 5 curl -s "http://localhost:${WEBUI_PORT}" > /dev/null 2>&1; then
+    echo -e "  ${CYAN}✅${NC} WebUI              ${BOLD}http://localhost:${WEBUI_PORT}${NC}"
 else
     echo -e "  ${RED}❌${NC} WebUI              ${DIM}недоступен${NC}"
 fi
 
-if timeout 5 curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
-    echo -e "  ${GREEN}✅${NC} Ollama API         ${BOLD}http://localhost:11434${NC}"
-    MODELS=$(curl -s http://localhost:11434/api/tags | grep -o '"name":"[^"]*"' | sed 's/"name":"//;s/"//g')
+if timeout 5 curl -s "http://localhost:${OLLAMA_PORT}/api/tags" > /dev/null 2>&1; then
+    echo -e "  ${GREEN}✅${NC} Ollama API         ${BOLD}http://localhost:${OLLAMA_PORT}${NC}"
+    MODELS=$(curl -s "http://localhost:${OLLAMA_PORT}/api/tags" | grep -o '"name":"[^"]*"' | sed 's/"name":"//;s/"//g')
     MODEL_COUNT=$(echo "$MODELS" | grep -c . 2>/dev/null)
     if [ "$MODEL_COUNT" -gt 0 ]; then
         echo -e "     ${DIM}Модели (${MODEL_COUNT}):${NC}"

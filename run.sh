@@ -11,10 +11,28 @@ else
     GREEN=''; RED=''; YELLOW=''; BLUE=''; PURPLE=''; CYAN=''; BOLD=''; DIM=''; NC=''
 fi
 
+source "./lib.sh"
+
+OLLAMA_PORT=$(get_host_port ollama 11434)
+DASHBOARD_PORT=$(get_host_port dashboard 5000)
+WEBUI_PORT=$(get_host_port webui 8080)
+
 echo ""
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 echo -e "${BLUE}  Запуск AI стека${NC}"
 echo -e "${BLUE}════════════════════════════════════════${NC}"
+echo ""
+
+echo -e "${BOLD}🔍 Проверка портов...${NC}"
+if ! check_port_conflicts \
+    "${OLLAMA_PORT}:Ollama" \
+    "${DASHBOARD_PORT}:Dashboard" \
+    "${WEBUI_PORT}:WebUI"; then
+    echo ""
+    echo -e "${YELLOW}💡 Измените порты в docker-compose.yaml и перезапустите${NC}"
+    exit 1
+fi
+echo -e "  ${GREEN}✅ Все порты свободны${NC}"
 echo ""
 
 echo -e "${BOLD}🚀 Сборка и запуск контейнеров...${NC}"
@@ -50,9 +68,9 @@ wait_service() {
     done
 }
 
-wait_service "Ollama"  "http://localhost:11434/api/tags"  "$GREEN"
-wait_service "Dashboard" "http://localhost:5000/api/system-info" "$PURPLE"
-wait_service "WebUI"   "http://localhost:8080"            "$CYAN"
+wait_service "Ollama"    "http://localhost:${OLLAMA_PORT}/api/tags"       "$GREEN"
+wait_service "Dashboard" "http://localhost:${DASHBOARD_PORT}/api/system-info" "$PURPLE"
+wait_service "WebUI"     "http://localhost:${WEBUI_PORT}"                  "$CYAN"
 
 echo ""
 echo -e "${GREEN}✅ Все сервисы запущены${NC}"
@@ -83,7 +101,7 @@ while true; do
         break
     fi
 
-    LOADED=$(curl -s http://localhost:11434/api/tags | grep -o '"name"' | wc -l)
+    LOADED=$(curl -s "http://localhost:${OLLAMA_PORT}/api/tags" | grep -o '"name"' | wc -l)
     if [ "$LOADED" -ge "$EXPECTED" ]; then
         echo ""
         echo -e "${GREEN}════════════════════════════════════════${NC}"
