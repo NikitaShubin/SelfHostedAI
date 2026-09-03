@@ -72,6 +72,7 @@ services:
   dashboard:
     build: ./dashboard
     container_name: ai-dashboard
+    pid: host # Общий PID namespace с хостом, чтобы pynvml видел хостовые PID для расчёта GPU-метрик Ollama
     depends_on:
       - ollama
     volumes:
