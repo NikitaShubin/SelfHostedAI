@@ -8,11 +8,14 @@
 # mistral:7b-instruct            # Компактная и эффективная модель (7B параметров)
 
 # Специализированные модели:
-nomic-embed-text:latest        # Модель для эмбеддингов (векторизации текста)
-qwen2.5-coder:7b-instruct      # Специализированная модель для программирования
+#nomic-embed-text:latest        # Модель для эмбеддингов (векторизации текста)
+#qwen2.5-coder:7b-instruct      # Специализированная модель для программирования
 # llava:7b                       # Мультимодальная модель (текст + изображения)
 
 # Большие модели (требуют больше ресурсов):
-gpt-oss:20b
-glm-4.7-flash:q8_0
-nemotron-cascade-2:latest
+gpt-oss:120b
+#glm-4.7-flash:q8_0
+#nemotron-cascade-2:latest
+
+qwen3.8-flash-next:125b-mlx
+qwen3.8-flash-next:125b-a6b-nvfp4
