@@ -156,8 +156,8 @@ curl http://localhost:11434/api/generate -d '{
 
 ```yaml
 environment:
-  - UPDATE_INTERVAL=${MONITOR_UPDATE_INTERVAL:-1}  # Интервал обновления в секундах
-  - RETENTION_TIME=${MONITOR_RETENTION:-60}        # Время хранения истории в секундах
+  - UPDATE_INTERVAL=${DASHBOARD_UPDATE_INTERVAL:-1}  # Интервал обновления в секундах
+  - RETENTION_TIME=${DASHBOARD_RETENTION:-60}        # Время хранения истории в секундах
 ```
 
 <details>
@@ -178,6 +178,7 @@ environment:
 │   ├── Dockerfile           # Образ Ollama с утилитами
 │   └── init-models.sh       # Скрипт загрузки моделей
 ├── docker-compose.yaml      # Конфигурация Docker Compose
+├── lib.sh                   # Общие функции (автоопределение портов, проверка конфликтов)
 ├── models.txt               # Список моделей для загрузки
 ├── monitor.sh               # Мониторинг сервисов и доступности
 ├── restart.sh               # Перезапуск стека
