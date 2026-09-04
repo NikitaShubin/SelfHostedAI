@@ -43,6 +43,8 @@ services:
       - ENABLE_ADD_ONS=true # Включение дополнений
       - ENABLE_STT=true # Включение распознавания речи
       - ENABLE_TTS=true # Включение синтеза речи
+      - ENABLE_WEB_SEARCH=true # Включение веб-поиска по умолчанию
+      - WEB_SEARCH_ENGINE=duckduckgo # Движок поиска (без API-ключа)
       - BYPASS_MODEL_ACCESS_CONTROL=true # Отключение любых ограничений на доступ к моделям
       - HF_HUB_OFFLINE=0 # Использовать онлайн-репозитории HuggingFace
     ports:
